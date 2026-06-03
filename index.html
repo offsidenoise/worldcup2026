@@ -2188,6 +2188,16 @@ async function renderPredGroupSwipe(){
   const heading=document.getElementById('pred-group-heading');
   const idx=GROUP_KEYS.indexOf(predGroupTab);
 
+  // Pre-fetch Polymarket odds for current group before rendering
+  // (silently, fallback to model if fails)
+  try {
+    const g = predGroupTab;
+    const fetches = state.groupMatches[g]
+      .filter(m => m.homeScore === null)
+      .map(m => fetchPolyOdds(polySlug(m.home, m.away, getGroupFixtureDate(m.home, m.away))));
+    await Promise.allSettled(fetches);
+  } catch(e) {}
+
   // Render tab buttons
   document.getElementById('pred-group-tabs').innerHTML = GROUP_KEYS.map(g=>
     `<button class="pred-group-btn${predGroupTab===g?' active':''}" onclick="setPredView('${g}')">${g}</button>`
@@ -2234,6 +2244,19 @@ async function renderPredKOSwipe(){
   const inner=document.getElementById('pred-ko-swipe-inner');
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
+
+  // Pre-fetch Polymarket odds for KO matches with known teams
+  try {
+    const round = KO_ROUNDS.find(r=>r.key===predKOTab);
+    if(round) {
+      const fetches = round.matches.map(mn => {
+        const {home,away} = getKOMatchTeams(mn);
+        if(!home||!away||home==='TBD'||away==='TBD') return Promise.resolve(null);
+        return fetchPolyOdds(polySlug(home,away,getKOFixtureDate(mn)));
+      });
+      await Promise.allSettled(fetches);
+    }
+  } catch(e) {}
 
   // Render tab buttons
   document.getElementById('pred-ko-tabs').innerHTML = KO_ROUNDS.map(r=>
@@ -4771,10 +4794,50 @@ function openSquadModal(team) {
   const titleEl = document.getElementById('squad-modal-title');
   const content = document.getElementById('squad-modal-content');
   titleEl.textContent = (FLAGS[team]||'') + ' ' + tTeam(team);
-  // Reuse renderTeamDrill — it writes into the provided element
-  renderTeamDrill(team, content);
+
+  const coachInfo = TEAM_COACHES[team];
+  const coachStr = coachInfo ? (coachInfo.nat ? coachInfo.name+' ('+coachInfo.nat+')' : coachInfo.name) : '';
+  const players = statsData.players
+    .filter(p => p.country === team && !p.tbd)
+    .sort((a,b) => {
+      const po = {GK:0,DF:1,MF:2,FW:3};
+      return (po[a.pos]??4)-(po[b.pos]??4) || (a.name||'').localeCompare(b.name||'');
+    });
+
+  const BC = "Barlow Condensed";
+  const BN = "Bebas Neue";
+  let h = '';
+  if(coachStr) h += `<div style="font-family:'${BC}',sans-serif;font-size:0.85rem;color:var(--muted);padding:12px 16px 4px;">${t('coach')}: <span style="color:var(--text);">${coachStr}</span></div>`;
+
+  h += `<table style="width:100%;border-collapse:collapse;font-family:'${BC}',sans-serif;">
+    <thead><tr style="border-bottom:1px solid var(--border);">
+      <th style="text-align:left;padding:6px 12px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;">${t('th_player')}</th>
+      <th style="padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;">${t('th_pos')}</th>
+      <th style="padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;">${t('th_age')}</th>
+      <th style="text-align:left;padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;">${t('th_club')}</th>
+    </tr></thead><tbody>`;
+
+  let lastPos = '';
+  players.forEach(p => {
+    if(p.pos && p.pos !== lastPos) {
+      lastPos = p.pos;
+      h += `<tr><td colspan="4" style="padding:6px 12px 2px;font-family:'${BC}',sans-serif;font-size:0.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);background:rgba(201,168,76,0.04);border-bottom:1px solid var(--border);">${p.pos}</td></tr>`;
+    }
+    h += `<tr style="border-bottom:1px solid rgba(30,45,61,0.4);">
+      <td style="padding:7px 12px;font-size:0.88rem;">${p.name||''}</td>
+      <td style="padding:7px 8px;text-align:center;font-size:0.78rem;color:var(--muted);">${p.pos||'—'}</td>
+      <td style="padding:7px 8px;text-align:center;font-size:0.88rem;font-family:'${BN}',sans-serif;">${p.age!=null?p.age:'—'}</td>
+      <td style="padding:7px 8px;font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">${p.club||'—'}</td>
+    </tr>`;
+  });
+
+  if(!players.length) h += `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem;">No player data</td></tr>`;
+  h += '</tbody></table>';
+
+  content.innerHTML = h;
   overlay.classList.add('open');
 }
+
 function closeSquadModal() {
   document.getElementById('squad-modal-overlay').classList.remove('open');
 }
@@ -4793,6 +4856,9 @@ document.addEventListener('touchend', function(e) {
 }, {passive:false});
 
 setInterval(async function(){await refreshPolymarket();if(document.getElementById('page-predictions').classList.contains('active'))renderPredictions();},3600000);
+window.addEventListener('unhandledrejection', function(e) {
+  console.warn('[PM Error]', e.reason);
+});
 loadState();
 initState();
 initTheme();
