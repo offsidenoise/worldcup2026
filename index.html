@@ -347,6 +347,12 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .btn-clear { padding:10px 16px; background:rgba(231,76,60,0.1); border:1px solid rgba(231,76,60,0.3); border-radius:6px; color:#e74c3c; font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:0.9rem; cursor:pointer; transition:all 0.2s; }
 .btn-clear:hover { background:rgba(231,76,60,0.2); }
 
+.team-squad-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.team-squad-link:hover { color: var(--accent); }
 ::-webkit-scrollbar { width:6px; height:6px; }
 ::-webkit-scrollbar-track { background:var(--bg); }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
@@ -850,7 +856,18 @@ body.light-mode .stats-tbl th { background:var(--bg); }
       <button class="btn-primary" onclick="saveMatch()">Save</button>
     </div>
   </div>
+
+<!-- SQUAD MODAL -->
+<div class="modal-overlay" id="squad-modal-overlay">
+  <div class="modal" style="max-width:480px;width:95%;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div id="squad-modal-title" style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent);letter-spacing:2px;"></div>
+      <button onclick="closeSquadModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
+    </div>
+    <div id="squad-modal-content" style="overflow-y:auto;flex:1;padding:0 4px 12px;"></div>
+  </div>
 </div>
+
 
 <script>
 // ============================================================
@@ -1968,7 +1985,7 @@ function renderGroups(){
       const rc=i<2?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
       const fd=t.form.slice(-3).map(f=>`<div class="form-dot form-${f.toLowerCase()}"></div>`).join('');
-      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span>${tTeam(t.name)}</td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
+      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" onclick="openSquadModal('${t.name.replace(/'/g,'\\\'')}')" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
     }).join('');
     const sortedMatchIdxs=Array.from({length:matches.length},(_,i)=>i).sort((a,b)=>
       fixtureSortKey(matches[a].home,matches[a].away)-fixtureSortKey(matches[b].home,matches[b].away)
@@ -3934,7 +3951,7 @@ function renderStatsTeams(){
   });
   rows=sortBy(rows,sk.col,sk.dir,numCols.includes(sk.col));
   const th=(col,lbl,isNum)=>thH("teams",sk,col,lbl,isNum);
-  let html='<div class="stats-table-wrap"><table class="stats-tbl"><thead><tr>'+
+  let html='<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:0.8rem;color:var(--muted);margin-bottom:10px;padding:2px 0;">👆 '+t('tap_team_hint')+'</div><div class="stats-table-wrap"><table class="stats-tbl"><thead><tr>'+
     th('name','Team',false)+th('gf','GF',true)+th('ga','GA',true)+
     th('yellow','🟨',true)+th('red','🟥',true)+
     th('curLabel',t('th_round'),false)+th('predLabel',t('th_predicted'),false)+
@@ -4315,6 +4332,7 @@ const STRINGS = {
   // Results subtab buttons
   res_group_stage:     {en:'Group Stage',            es:'Fase de Grupos'},
   res_knockout:        {en:'Knockout',               es:'Eliminatorias'},
+    tap_team_hint: {en:'Tap a team name to view their squad', es:'Toca el nombre de un equipo para ver su plantilla'},
     // Flores/Baumgartner TBD
   flores_tbd:   {en:'Flores replacement pending',      es:'Reemplazo de Flores pendiente'},
   baumgartner_tbd:{en:'Baumgartner replacement pending',es:'Reemplazo de Baumgartner pendiente'},
@@ -4683,6 +4701,26 @@ async function globalRefresh(){
 // ============================================================
 // INIT
 // ============================================================
+// ============================================================
+// SQUAD MODAL
+// ============================================================
+function openSquadModal(team) {
+  const overlay = document.getElementById('squad-modal-overlay');
+  const titleEl = document.getElementById('squad-modal-title');
+  const content = document.getElementById('squad-modal-content');
+  titleEl.textContent = (FLAGS[team]||'') + ' ' + tTeam(team);
+  // Reuse renderTeamDrill — it writes into the provided element
+  renderTeamDrill(team, content);
+  overlay.classList.add('open');
+}
+function closeSquadModal() {
+  document.getElementById('squad-modal-overlay').classList.remove('open');
+}
+// Close on overlay background click
+document.getElementById('squad-modal-overlay').addEventListener('click', function(e) {
+  if(e.target === this) closeSquadModal();
+});
+
 loadState();
 initState();
 initTheme();
