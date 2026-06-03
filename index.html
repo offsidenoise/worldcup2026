@@ -858,13 +858,13 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   </div>
 
 <!-- SQUAD MODAL -->
-<div class="modal-overlay" id="squad-modal-overlay">
+<div class="modal-overlay" id="squad-modal-overlay" style="touch-action:manipulation;">
   <div class="modal" style="max-width:480px;width:95%;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div id="squad-modal-title" style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent);letter-spacing:2px;"></div>
       <button onclick="closeSquadModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
-    <div id="squad-modal-content" style="overflow-y:auto;flex:1;padding:0 4px 12px;"></div>
+    <div id="squad-modal-content" style="overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;padding:0 4px 12px;"></div>
   </div>
 </div>
 
@@ -987,6 +987,64 @@ const FLAGS = {
   'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Croatia':'🇭🇷','Ghana':'🇬🇭','Panama':'🇵🇦'
 };
 
+
+// ============================================================
+// POLYMARKET INTEGRATION — 50/50 blend with model
+// ============================================================
+const POLY_CODES = {
+  'Mexico':'mex','South Africa':'rsa','South Korea':'kr','Czechia':'cze',
+  'Canada':'can','Bosnia':'bih','Qatar':'qat','Switzerland':'sui',
+  'Brazil':'bra','Morocco':'mar','Haiti':'hai','Scotland':'sco',
+  'USA':'us','Paraguay':'par','Australia':'aus','Ürkiye':'tur',
+  'Germany':'ger','Curaçao':'cuw',"Côte d'Ivoire":'civ','Ecuador':'ecu',
+  'Netherlands':'ned','Japan':'jpn','Sweden':'swe','Tunisia':'tun',
+  'Belgium':'bel','Egypt':'egy','IR Iran':'irn','New Zealand':'nzl',
+  'Spain':'esp','Cabo Verde':'cpv','Saudi Arabia':'ksa','Uruguay':'uru',
+  'France':'fra','Senegal':'sen','Iraq':'irq','Norway':'nor',
+  'Argentina':'arg','Algeria':'dza','Austria':'aut','Jordan':'jor',
+  'Portugal':'por','DR Congo':'cod','Uzbekistan':'uzb','Colombia':'col',
+  'England':'eng','Croatia':'cro','Ghana':'gha','Panama':'pan',
+};
+const polyCache = {};
+function polySlug(home,away,d){const hc=POLY_CODES[home],ac=POLY_CODES[away];if(!hc||!ac||!d)return null;return 'fifwc-'+hc+'-'+ac+'-'+d;}
+function getGroupFixtureDate(home,away){const n=GROUP_FIXTURE_NUM[home+'_'+away]||GROUP_FIXTURE_NUM[away+'_'+home];const ft=FIXTURE_TIMES[n];return ft?ft.date:null;}
+function getKOFixtureDate(mn){const ft=FIXTURE_TIMES[mn];return ft?ft.date:null;}
+async function fetchPolyOdds(slug){
+  if(!slug)return null;
+  const now=Date.now();const c=polyCache[slug];
+  if(c&&(now-c.ts)<3600000)return c;
+  const PROXY='https://corsproxy.io/?url=';
+  // Use /markets?eventSlug= which returns markets directly (not nested under event)
+  // Try direct first, then corsproxy fallback
+  const url='https://gamma-api.polymarket.com/markets?eventSlug='+slug+'&active=true&limit=20';
+  async function tf(u){try{const r=await fetch(u);if(r.ok)return r.json();}catch(e){}return null;}
+  const mkts=await tf(url)||await tf(PROXY+encodeURIComponent(url));
+  if(!mkts||!mkts.length)return null;
+  for(const m of mkts){
+    const oc=m.outcomes||[];let pr=m.outcomePrices;
+    if(typeof pr==='string'){try{pr=JSON.parse(pr);}catch(e){continue;}}
+    if(!pr||!oc.length)continue;
+    if(oc.length===3){const di=oc.findIndex(o=>o.toLowerCase().includes('draw'));if(di===-1)continue;const oi=[0,1,2].filter(i=>i!==di);const res={pHome:Math.round(parseFloat(pr[oi[0]])*100),pDraw:Math.round(parseFloat(pr[di])*100),pAway:Math.round(parseFloat(pr[oi[1]])*100),isKO:false,ts:now};polyCache[slug]=res;return res;}
+    if(oc.length===2&&!oc.some(o=>o.toLowerCase().includes('draw'))){const res={pHome:Math.round(parseFloat(pr[0])*100),pAway:Math.round(parseFloat(pr[1])*100),isKO:true,ts:now};polyCache[slug]=res;return res;}
+  }
+  return null;
+}
+async function blendedProb(home,away,d){
+  const model=calcProb(home,away);
+  try{const poly=await fetchPolyOdds(polySlug(home,away,d));if(poly&&!poly.isKO){const bH=Math.round((model[0]+poly.pHome)/2);const bD=Math.round((model[1]+poly.pDraw)/2);const bA=Math.max(1,100-bH-bD);return{probs:[Math.max(1,bH),Math.max(1,bD),bA],source:'blend'};}}catch(e){}
+  return{probs:model,source:'model'};
+}
+async function blendedProbKO(home,away,d){
+  const model=calcProbKO(home,away);
+  try{const poly=await fetchPolyOdds(polySlug(home,away,d));if(poly&&poly.isKO){const bH=Math.max(1,Math.round((model[0]+poly.pHome)/2));return{probs:[bH,Math.max(1,100-bH)],source:'blend'};}}catch(e){}
+  return{probs:model,source:'model'};
+}
+async function refreshPolymarket(){
+  const fetches=[];
+  GROUP_KEYS.forEach(g=>{state.groupMatches[g].forEach(m=>{if(m.homeScore!==null)return;const s=polySlug(m.home,m.away,getGroupFixtureDate(m.home,m.away));if(s)fetches.push(fetchPolyOdds(s));});});
+  [...R32_SEEDS.map(s=>s.matchNum),...R16_MATCHES.map(s=>s.matchNum),...QF_MATCHES.map(s=>s.matchNum),...SF_MATCHES.map(s=>s.matchNum),104].forEach(mn=>{const{home,away}=getKOMatchTeams(mn);if(!home||!away||home==='TBD'||away==='TBD')return;const s=polySlug(home,away,getKOFixtureDate(mn));if(s)fetches.push(fetchPolyOdds(s));});
+  await Promise.allSettled(fetches);
+}
 
 // ── FIXTURE TIMES — UTC kickoff for all 104 matches (worldcuply.com / FIFA) ─
 const FIXTURE_TIMES = {
@@ -1985,7 +2043,7 @@ function renderGroups(){
       const rc=i<2?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
       const fd=t.form.slice(-3).map(f=>`<div class="form-dot form-${f.toLowerCase()}"></div>`).join('');
-      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" onclick="openSquadModal('${t.name.replace(/'/g,'\\\'')}')" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
+      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" data-squad="${t.name}" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
     }).join('');
     const sortedMatchIdxs=Array.from({length:matches.length},(_,i)=>i).sort((a,b)=>
       fixtureSortKey(matches[a].home,matches[a].away)-fixtureSortKey(matches[b].home,matches[b].away)
@@ -2110,7 +2168,7 @@ function setPredView(v){
   renderPredictions();
 }
 
-function renderPredictions(){
+async function renderPredictions(){
   // Progress bar
   const gpicked=Object.keys(state.predictions.group).filter(k=>state.predictions.group[k]).length;
   const glocked=GROUP_KEYS.reduce((s,g)=>s+state.groupMatches[g].filter(m=>m.homeScore!==null).length,0);
@@ -2118,13 +2176,13 @@ function renderPredictions(){
   document.getElementById('pred-prog-fill').style.width=`${(gpicked+glocked)/72*100}%`;
 
   if(predMainView==='group'){
-    renderPredGroupSwipe();
+    await renderPredGroupSwipe();
   } else {
-    renderPredKOSwipe();
+    await renderPredKOSwipe();
   }
 }
 
-function renderPredGroupSwipe(){
+async function renderPredGroupSwipe(){
   const inner=document.getElementById('pred-group-swipe-inner');
   const dots=document.getElementById('pred-group-dots');
   const heading=document.getElementById('pred-group-heading');
@@ -2137,13 +2195,13 @@ function renderPredGroupSwipe(){
 
   // Build all group pages
   inner.innerHTML='';
-  GROUP_KEYS.forEach(g=>{
+  for(const g of GROUP_KEYS){
     const page=document.createElement('div');
     page.className='swipe-page';
     page.id=`pred-group-page-${g}`;
-    renderPredGroup(g, page);
+    await renderPredGroup(g, page);
     inner.appendChild(page);
-  });
+  }
 
   // Position
   inner.style.transition='none';
@@ -2172,7 +2230,7 @@ function renderPredGroupSwipe(){
   });
 }
 
-function renderPredKOSwipe(){
+async function renderPredKOSwipe(){
   const inner=document.getElementById('pred-ko-swipe-inner');
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
@@ -2183,13 +2241,13 @@ function renderPredKOSwipe(){
   ).join('');
 
   inner.innerHTML='';
-  KO_ROUNDS.forEach(r=>{
+  for(const r of KO_ROUNDS){
     const page=document.createElement('div');
     page.className='swipe-page';
     page.id=`pred-ko-page-${r.key}`;
-    renderPredKO(r.key, page);
+    await renderPredKO(r.key, page);
     inner.appendChild(page);
-  });
+  }
 
   inner.style.transition='none';
   inner.style.transform=`translateX(-${idx*100}%)`;
@@ -2241,21 +2299,23 @@ function initSwipe(containerId, onSwipe){
   },{passive:true});
 }
 
-function renderPredGroup(g, container){
+async function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
   let html=`<div>`;
-  state.groupMatches[g].forEach((match, mi)=>{
+  for(let mi=0; mi<state.groupMatches[g].length; mi++){
+    const match=state.groupMatches[g][mi];
     const home=match.home, away=match.away;
     const locked=match.homeScore!==null;
     const fix=getGroupFixture(home,away);
     const pick=state.predictions.group[`${g}_${mi}`];
     const effective=effectiveGroupOutcome(g,mi);
-    const p=calcProb(home,away);
+    const _gfd=getGroupFixtureDate(home,away);
+    const {probs:p,source:pSrc}=locked?{probs:calcProb(home,away),source:'model'}:await blendedProb(home,away,_gfd);
     const hF=FLAGS[home]||'', aF=FLAGS[away]||'';
 
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}${!locked&&pSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${tTeam(home)}</div>
       <div class="pred-vs">VS</div>
@@ -2276,8 +2336,7 @@ function renderPredGroup(g, container){
       </div>`;
     }
     html+=`</div>`;
-  });
-
+  }
   // Predicted standings for this group
   html+=`<div class="pred-standings">
     <div class="pred-stand-header"><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
@@ -2294,7 +2353,7 @@ function renderPredGroup(g, container){
   container.innerHTML=html;
 }
 
-function renderPredKO(roundKey, container){
+async function renderPredKO(roundKey, container){
   const bracket=buildPredBracket();
   const roundDef=KO_ROUNDS.find(r=>r.key===roundKey);
   if(!roundDef||!container){return;}
@@ -2311,7 +2370,7 @@ function renderPredKO(roundKey, container){
     </div>`;
   }
 
-  roundDef.matches.forEach(mn=>{
+  for(const mn of roundDef.matches){
     const m=bracket[mn]||{};
     const fix=KO_FIXTURES[mn]||{};
     const home=m.home, away=m.away;
@@ -2324,7 +2383,7 @@ function renderPredKO(roundKey, container){
     const locked=realM.winner!=null;
 
     html+=`<div class="pred-match-card${tbd?' locked':''}${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+fix.venue:''}${locked?' · 🔒 Result locked':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+fix.venue:''}${locked?' · 🔒 Result locked':''}${!locked&&home&&away&&typeof koSrc!=='undefined'&&koSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${pick==='home'?' pick-winner':''}">${hF} ${tTeam(home)||'TBD'}</div>
       <div class="pred-vs">VS</div>
@@ -2334,7 +2393,8 @@ function renderPredKO(roundKey, container){
     if(locked){
       html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Advanced: <strong>${tTeam(realM.winner)}</strong></div>`;
     } else if(home&&away){
-      const [pA,pB]=calcProbKO(home,away);
+      const _kfd=getKOFixtureDate(mn);
+      const {probs:[pA,pB],source:koSrc}=await blendedProbKO(home,away,_kfd);
       html+=`<div class="prob-bar"><div class="prob-w1" style="width:${pA}%"></div><div class="prob-w2" style="width:${pB}%"></div></div>`;
       html+=`<div class="prob-labels"><span>${pA}% Win</span><span></span><span>Win ${pB}%</span></div>`;
       html+=`<div class="pick-btns-ko">
@@ -2350,7 +2410,7 @@ function renderPredKO(roundKey, container){
       html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">Awaiting earlier round results</div>`;
     }
     html+=`</div>`;
-  });
+  }
 
   container.innerHTML=html;
 }
@@ -4333,7 +4393,9 @@ const STRINGS = {
   res_group_stage:     {en:'Group Stage',            es:'Fase de Grupos'},
   res_knockout:        {en:'Knockout',               es:'Eliminatorias'},
     tap_team_hint: {en:'Tap a team name to view their squad', es:'Toca el nombre de un equipo para ver su plantilla'},
-    // Flores/Baumgartner TBD
+    poly_blend:{en:'Polymarket blend',es:'Con Polymarket'},
+  model_only:{en:'Model only',es:'Solo modelo'},
+  // Flores/Baumgartner TBD
   flores_tbd:   {en:'Flores replacement pending',      es:'Reemplazo de Flores pendiente'},
   baumgartner_tbd:{en:'Baumgartner replacement pending',es:'Reemplazo de Baumgartner pendiente'},
 };
@@ -4720,7 +4782,17 @@ function closeSquadModal() {
 document.getElementById('squad-modal-overlay').addEventListener('click', function(e) {
   if(e.target === this) closeSquadModal();
 });
+// Delegated listener for squad links (handles mobile touch + apostrophes in team names)
+document.addEventListener('click', function(e) {
+  const link = e.target.closest('[data-squad]');
+  if(link) { e.preventDefault(); openSquadModal(link.dataset.squad); }
+});
+document.addEventListener('touchend', function(e) {
+  const link = e.target.closest('[data-squad]');
+  if(link) { e.preventDefault(); openSquadModal(link.dataset.squad); }
+}, {passive:false});
 
+setInterval(async function(){await refreshPolymarket();if(document.getElementById('page-predictions').classList.contains('active'))renderPredictions();},3600000);
 loadState();
 initState();
 initTheme();
