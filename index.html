@@ -1947,7 +1947,7 @@ function renderOverview(){
 const MONTH_NUM={'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12};
 function fixtureSortKey(home, away) {
   const key = home+'_'+away;
-  const num = GROUP_FIXTURE_NUM[key];
+  const num = GROUP_FIXTURE_NUM[key]||GROUP_FIXTURE_NUM[away+'_'+home];
   const ft = FIXTURE_TIMES[num];
   if(ft) return new Date(ft.date+'T'+ft.utc+':00Z').getTime();
   const fix=getGroupFixture(home,away);
@@ -1968,7 +1968,7 @@ function renderGroups(){
       const rc=i<2?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
       const fd=t.form.slice(-3).map(f=>`<div class="form-dot form-${f.toLowerCase()}"></div>`).join('');
-      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span>${t.name}</td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
+      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span>${tTeam(t.name)}</td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
     }).join('');
     const sortedMatchIdxs=Array.from({length:matches.length},(_,i)=>i).sort((a,b)=>
       fixtureSortKey(matches[a].home,matches[a].away)-fixtureSortKey(matches[b].home,matches[b].away)
@@ -1978,7 +1978,7 @@ function renderGroups(){
       const played=m.homeScore!==null;
       const homeW=played&&m.homeScore>m.awayScore, awayW=played&&m.awayScore>m.homeScore;
       const fix=getGroupFixture(m.home,m.away);
-      const fixtureNum=GROUP_FIXTURE_NUM[m.home+'_'+m.away];
+      const fixtureNum=GROUP_FIXTURE_NUM[m.home+'_'+m.away]||GROUP_FIXTURE_NUM[m.away+'_'+m.home];
       const kickoffDt=fixtureNum?getFixtureTime(fixtureNum):null;
       const kickoffDate=kickoffDt?kickoffDt.toLocaleDateString([],{month:'short',day:'numeric'}):'';
       const kickoffStr=kickoffDt?formatKickoff(kickoffDt):'';
@@ -1988,9 +1988,9 @@ function renderGroups(){
       return `<div class="match-row${played?' match-played':''}" onclick="openGroupMatch('${g}',${idx})">
         <div class="match-row-inner">
           <div class="match-main">
-            <div class="match-team${played?(homeW?' res-winner':' res-loser'):''}">${m.home}</div>
+            <div class="match-team${played?(homeW?' res-winner':' res-loser'):''}">${tTeam(m.home)}</div>
             <div class="score-box"><div class="score-btn">${played?m.homeScore:'·'}</div><div class="score-sep">:</div><div class="score-btn">${played?m.awayScore:'·'}</div></div>
-            <div class="match-team right${played?(awayW?' res-winner':' res-loser'):''}">${m.away}</div>
+            <div class="match-team right${played?(awayW?' res-winner':' res-loser'):''}">${tTeam(m.away)}</div>
           </div>
           ${dateTimeStr?`<div class="match-meta-line">${dateTimeStr}</div>`:''}${metaVenue?`<div class="match-meta-line">${metaVenue}</div>`:''}
         </div></div>`;
@@ -2028,7 +2028,7 @@ function renderKnockout(){
       const fix=KO_FIXTURES[mn]||{};
       if(mn===104&&m.winner){
         const c=document.createElement('div'); c.className='ko-champion-card';
-        c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${m.winner}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
+        c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${tTeam(m.winner)}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
         md.appendChild(c);
       } else {
         const el=buildBracketMatchEl(mn,home,away,m.winner,fix,homePrelim,awayPrelim,homeDisplay,awayDisplay);
@@ -2045,7 +2045,7 @@ function renderKnockout(){
 
 function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim, homeDisplay, awayDisplay){
   const el=document.createElement('div'); el.className='bracket-match';
-  const hD=homeDisplay||home||'TBD', aD=awayDisplay||away||'TBD';
+  const hD=tTeam(homeDisplay||home||'TBD'), aD=tTeam(awayDisplay||away||'TBD');
   const hW=winner&&winner===home, aW=winner&&winner===away;
   const m=state.knockout[mn]||{};
   const f=fix||{};
@@ -2142,7 +2142,7 @@ function renderPredGroupSwipe(){
   const teams=GROUPS[predGroupTab];
   heading.innerHTML=
     `<span class="pred-group-big-letter">${predGroupTab}</span>`+
-    `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+t).join(' · ')}</span>`;
+    `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+tTeam(t)).join(' · ')}</span>`;
 
   // Swipe handling
   initSwipe('pred-group-swipe-container', function(dir){
@@ -2240,9 +2240,9 @@ function renderPredGroup(g, container){
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
     html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}</div>`;
     html+=`<div class="pred-teams">
-      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${home}</div>
+      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${tTeam(home)}</div>
       <div class="pred-vs">VS</div>
-      <div class="pred-team away${effective==='away'?' pick-winner':''}">${away} ${aF}</div>
+      <div class="pred-team away${effective==='away'?' pick-winner':''}">${tTeam(away)} ${aF}</div>
     </div>`;
 
     if(locked){
@@ -2253,9 +2253,9 @@ function renderPredGroup(g, container){
       html+=`<div class="prob-bar"><div class="prob-w1" style="width:${p[0]}%"></div><div class="prob-dr" style="width:${p[1]}%"></div><div class="prob-w2" style="width:${p[2]}%"></div></div>`;
       html+=`<div class="prob-labels"><span>${p[0]}% Win</span><span>${p[1]}% Draw</span><span>Win ${p[2]}%</span></div>`;
       html+=`<div class="pick-btns">
-        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${home}</button>
+        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${tTeam(home)}</button>
         <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">Draw</button>
-        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${away} ${aF}</button>
+        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${tTeam(away)} ${aF}</button>
       </div>`;
     }
     html+=`</div>`;
@@ -2267,7 +2267,7 @@ function renderPredGroup(g, container){
   st.forEach((t,i)=>{
     const adv=i<2;
     html+=`<div class="pred-srow${adv?' adv':''}">
-      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${t.n}</span></span>
+      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
       <span class="pred-pts">${t.pts}</span>
@@ -2290,7 +2290,7 @@ function renderPredKO(roundKey, container){
     html+=`<div class="pred-champion-card" style="${finalM.autoSim?'opacity:0.75':''}">
       <span class="pred-champ-emoji">🏆</span>
       <span class="pred-champ-label">2026 World Cup Champion${autoLabel}</span>
-      <div class="pred-champ-name">${FLAGS[finalM.winner]||''} ${finalM.winner}</div>
+      <div class="pred-champ-name">${FLAGS[finalM.winner]||''} ${tTeam(finalM.winner)}</div>
     </div>`;
   }
 
@@ -2309,25 +2309,25 @@ function renderPredKO(roundKey, container){
     html+=`<div class="pred-match-card${tbd?' locked':''}${locked?' locked':''}">`;
     html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+fix.venue:''}${locked?' · 🔒 Result locked':''}</div>`;
     html+=`<div class="pred-teams">
-      <div class="pred-team home${pick==='home'?' pick-winner':''}">${hF} ${home||'TBD'}</div>
+      <div class="pred-team home${pick==='home'?' pick-winner':''}">${hF} ${tTeam(home)||'TBD'}</div>
       <div class="pred-vs">VS</div>
-      <div class="pred-team away${pick==='away'?' pick-winner':''}">${(away||'TBD')+' '+(aF)}</div>
+      <div class="pred-team away${pick==='away'?' pick-winner':''}">${(tTeam(away)||'TBD')+' '+(aF)}</div>
     </div>`;
 
     if(locked){
-      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Advanced: <strong>${realM.winner}</strong></div>`;
+      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Advanced: <strong>${tTeam(realM.winner)}</strong></div>`;
     } else if(home&&away){
       const [pA,pB]=calcProbKO(home,away);
       html+=`<div class="prob-bar"><div class="prob-w1" style="width:${pA}%"></div><div class="prob-w2" style="width:${pB}%"></div></div>`;
       html+=`<div class="prob-labels"><span>${pA}% Win</span><span></span><span>Win ${pB}%</span></div>`;
       html+=`<div class="pick-btns-ko">
-        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredKO(${mn},'home')">${hF} ${home}</button>
-        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredKO(${mn},'away')">${away} ${aF}</button>
+        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredKO(${mn},'home')">${hF} ${tTeam(home)}</button>
+        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredKO(${mn},'away')">${tTeam(away)} ${aF}</button>
       </div>`;
       const bm=bracket[mn];
       if(bm&&bm.winner){
         const isAuto=bm.autoSim&&!pick;
-        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${bm.winner} advances${isAuto?' (auto)':''}</div>`;
+        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} advances${isAuto?' (auto)':''}</div>`;
       }
     } else {
       html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">Awaiting earlier round results</div>`;
@@ -3941,7 +3941,7 @@ function renderStatsTeams(){
     '<th>'+t('th_next')+'</th></tr></thead><tbody>';
   rows.forEach(r=>{
     const nxt=(r.nextOpp===t('eliminated')||r.nextOpp==='Eliminated'||r.nextOpp==='Eliminado')?'<span style="color:var(--muted);font-size:0.8rem;">Eliminated</span>':
-              r.nextOpp==='TBD'?'<span style="color:var(--muted);">TBD</span>':r.nextOpp;
+              r.nextOpp==='TBD'?'<span style="color:var(--muted);">TBD</span>':tTeam(r.nextOpp);
     html+='<tr><td><span class="team-link" onclick="openTeamDrill(this.dataset.team)" data-team="'+r.name.replace(/"/g,'&quot;')+'">'
       +r.flag+' '+r.name+'</span></td>'
       +'<td class="num">'+r.gf+'</td><td class="num">'+r.ga+'</td>'
@@ -4552,7 +4552,7 @@ function renderTodayMatches(){
     const scoreHtml=m.score?'<div class="today-score">'+m.score+'</div>':
                     m.live?'<div class="today-score" id="live-score-'+(m.matchNum||'')+'">–</div>':'';
     html+='<div class="today-match-row"><div>'
-      +'<div class="today-teams">'+m.homeFlag+' '+m.home+' <span style="color:var(--muted);font-weight:400">vs</span> '+m.awayFlag+' '+m.away+liveHtml+'</div>'
+      +'<div class="today-teams">'+m.homeFlag+' '+tTeam(m.home)+' <span style="color:var(--muted);font-weight:400">vs</span> '+m.awayFlag+' '+tTeam(m.away)+liveHtml+'</div>'
       +(m.venue?'<div class="today-venue">'+tVenue(m.venue)+'</div>':'')
       +'</div>'+scoreHtml+'<div class="today-time">'+timeStr+'</div></div>';
   });
