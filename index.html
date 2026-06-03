@@ -680,15 +680,15 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Subtabs -->
     <div class="pred-view-tabs" style="margin-bottom:24px;">
-      <button class="pred-view-tab active" id="res-tab-groups" onclick="setResSubtab('groups')">Group Stage</button>
-      <button class="pred-view-tab" id="res-tab-knockout" onclick="setResSubtab('knockout')">Knockout</button>
+      <button class="pred-view-tab active" id="res-tab-groups" onclick="setResSubtab('groups')" data-i18n="res_group_stage">Group Stage</button>
+      <button class="pred-view-tab" id="res-tab-knockout" onclick="setResSubtab('knockout')" data-i18n="res_knockout">Knockout</button>
     </div>
 
     <!-- Group Stage subview -->
     <div id="res-groups-pane">
       <div class="legend" style="margin-bottom:16px;">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Qualified (Top 2)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Play-in eligible (3rd)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="legend-top2">Qualified (Top 2)</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div><span id="legend-3rd">Play-in eligible (3rd)</span></div>
       </div>
       <div class="groups-grid" id="groups-grid"></div>
     </div>
@@ -1256,8 +1256,8 @@ function initState() {
   initKnockout();
 }
 
-function saveState() { try { localStorage.setItem('wc2026v16', JSON.stringify(state)); } catch(e){} }
-function loadState() { try { const s=localStorage.getItem('wc2026v16'); if(s) state=JSON.parse(s); } catch(e){} }
+function saveState() { try { localStorage.setItem('wc2026v17', JSON.stringify(state)); } catch(e){} }
+function loadState() { try { const s=localStorage.getItem('wc2026v17'); if(s) state=JSON.parse(s); } catch(e){} }
 
 // ============================================================
 // STANDINGS
@@ -1929,16 +1929,16 @@ function renderOverview(){
   const totalGoals=GROUP_KEYS.reduce((s,g)=>s+state.groupMatches[g].reduce((a,m)=>a+(m.homeScore!==null?m.homeScore+m.awayScore:0),0),0);
   const completeGroups=GROUP_KEYS.filter(g=>allMatchesPlayed(g)).length;
   document.getElementById('stats-grid').innerHTML=`
-    <div class="stat-card"><div class="stat-label">Matches Played</div><div class="stat-value">${playedMatches}</div><div class="stat-sub">of ${totalMatches} group matches</div><div class="progress-bar"><div class="progress-fill" style="width:${totalMatches?playedMatches/totalMatches*100:0}%"></div></div></div>
-    <div class="stat-card"><div class="stat-label">Goals Scored</div><div class="stat-value">${totalGoals}</div><div class="stat-sub">${playedMatches>0?(totalGoals/playedMatches).toFixed(1):0} per match avg</div></div>
-    <div class="stat-card"><div class="stat-label">Groups Complete</div><div class="stat-value">${completeGroups}</div><div class="stat-sub">of 12 groups</div><div class="progress-bar"><div class="progress-fill" style="width:${completeGroups/12*100}%"></div></div></div>
-    <div class="stat-card"><div class="stat-label">Teams Qualified</div><div class="stat-value">${completeGroups*2}</div><div class="stat-sub">Top 2 from completed groups</div></div>`;
+    <div class="stat-card"><div class="stat-label">${t('stat_matches_played')}</div><div class="stat-value">${playedMatches}</div><div class="stat-sub">${t('stat_of_matches').replace('{n}',totalMatches)}</div><div class="progress-bar"><div class="progress-fill" style="width:${totalMatches?playedMatches/totalMatches*100:0}%"></div></div></div>
+    <div class="stat-card"><div class="stat-label">${t('stat_goals_scored')}</div><div class="stat-value">${totalGoals}</div><div class="stat-sub">${playedMatches>0?(totalGoals/playedMatches).toFixed(1):0} ${t('stat_per_match')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('stat_groups_complete')}</div><div class="stat-value">${completeGroups}</div><div class="stat-sub">${t('stat_of_groups')}</div><div class="progress-bar"><div class="progress-fill" style="width:${completeGroups/12*100}%"></div></div></div>
+    <div class="stat-card"><div class="stat-label">${t('stat_teams_qualified')}</div><div class="stat-value">${completeGroups*2}</div><div class="stat-sub">${t('stat_top2')}</div></div>`;
   const qualified=[];
   GROUP_KEYS.forEach(g=>{if(allMatchesPlayed(g)){const s=calcStandings(g);qualified.push({team:s[0].name,group:g,pos:1},{team:s[1].name,group:g,pos:2});}});
   const ql=document.getElementById('qualified-list');
   ql.innerHTML=qualified.length===0
-    ?`<div class="qualified-header">Qualified Teams</div><div style="padding:16px;color:var(--muted);font-family:'Barlow Condensed';font-size:0.85rem;">Complete group matches to see qualifiers</div>`
-    :`<div class="qualified-header">✓ Qualified Teams (${qualified.length})</div><div class="qualified-teams">${qualified.map(q=>`<div class="q-team-chip">${q.team} <span class="q-group">G${q.group}${q.pos}</span></div>`).join('')}</div>`;
+    ?`<div class="qualified-header">${t('qual_teams')}</div><div style="padding:16px;color:var(--muted);font-family:'Barlow Condensed';font-size:0.85rem;">${t('qual_complete')}</div>`
+    :`<div class="qualified-header">✓ ${t('qual_teams')} (${qualified.length})</div><div class="qualified-teams">${qualified.map(q=>`<div class="q-team-chip">${tTeam(q.team)} <span class="q-group">G${q.group}${q.pos}</span></div>`).join('')}</div>`;
 }
 
 // ============================================================
@@ -1980,10 +1980,11 @@ function renderGroups(){
       const fix=getGroupFixture(m.home,m.away);
       const fixtureNum=GROUP_FIXTURE_NUM[m.home+'_'+m.away];
       const kickoffDt=fixtureNum?getFixtureTime(fixtureNum):null;
+      const kickoffDate=kickoffDt?kickoffDt.toLocaleDateString([],{month:'short',day:'numeric'}):'';
       const kickoffStr=kickoffDt?formatKickoff(kickoffDt):'';
       const metaVenue=fix.venue?tVenue(fix.venue):'';
-      const sepDot='<span class="meta-sep">·</span>';
-      const meta=kickoffStr?(kickoffStr+(metaVenue?sepDot+metaVenue:'')):(fix.date?(fix.date+sepDot+metaVenue):metaVenue);
+      const dateTimeStr=kickoffDate&&kickoffStr?(kickoffDate+' · '+kickoffStr):(kickoffDate||kickoffStr);
+      const meta=dateTimeStr||metaVenue;
       return `<div class="match-row${played?' match-played':''}" onclick="openGroupMatch('${g}',${idx})">
         <div class="match-row-inner">
           <div class="match-main">
@@ -1991,13 +1992,13 @@ function renderGroups(){
             <div class="score-box"><div class="score-btn">${played?m.homeScore:'·'}</div><div class="score-sep">:</div><div class="score-btn">${played?m.awayScore:'·'}</div></div>
             <div class="match-team right${played?(awayW?' res-winner':' res-loser'):''}">${m.away}</div>
           </div>
-          ${meta?`<div class="match-meta-line">${meta}</div>`:''}
+          ${dateTimeStr?`<div class="match-meta-line">${dateTimeStr}</div>`:''}${metaVenue?`<div class="match-meta-line">${metaVenue}</div>`:''}
         </div></div>`;
     }).join('');
     card.innerHTML=`
-      <div class="group-header"><div class="group-letter">${g}</div><div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:0.9rem;">Group ${g}</div><div class="group-label">${matches.filter(m=>m.homeScore!==null).length}/${matches.length} played</div></div></div>
+      <div class="group-header"><div class="group-letter">${g}</div><div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:0.9rem;">${t('group_label')} ${g}</div><div class="group-label">${matches.filter(m=>m.homeScore!==null).length}/${matches.length} ${t('group_played')}</div></div></div>
       <table class="standings-table"><thead><tr><th style="text-align:left;padding-left:12px;">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>PTS</th><th>Form</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-      <div class="matches-section"><div class="matches-title">Matches — tap to set score</div>${matchesHtml}</div>`;
+      <div class="matches-section"><div class="matches-title">${t('matches_tap')}</div>${matchesHtml}</div>`;
     grid.appendChild(card);
   });
 }
@@ -2027,7 +2028,7 @@ function renderKnockout(){
       const fix=KO_FIXTURES[mn]||{};
       if(mn===104&&m.winner){
         const c=document.createElement('div'); c.className='ko-champion-card';
-        c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">World Champion</span><span class="ko-champion-name">${m.winner}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
+        c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${m.winner}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
         md.appendChild(c);
       } else {
         const el=buildBracketMatchEl(mn,home,away,m.winner,fix,homePrelim,awayPrelim,homeDisplay,awayDisplay);
@@ -2065,7 +2066,7 @@ function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim
     <div class="bracket-team ${aClass}" ${aClick}>
       <span style="flex:1">${aD}</span>${m.awayScore!=null?`<span class="bracket-score ${aW?'w':''}">${m.awayScore}</span>`:''}
     </div>
-    <div class="bracket-meta"><span class="match-num">${f.label||'M'+mn}</span>${f.date?' · '+f.date:''}${f.venue?' · '+tVenue(f.venue):''}</div>`;
+    <div class="bracket-meta"><span class="match-num">${f.label||'M'+mn}</span>${(()=>{const kdt=getFixtureTime(mn);if(!kdt)return f.date?' · '+f.date:'';const kd=kdt.toLocaleDateString([],{month:'short',day:'numeric'});const kt=formatKickoff(kdt);return ' · '+kd+' · '+kt;})()}${f.venue?' · '+tVenue(f.venue):''}</div>`;
   return el;
 }
 
@@ -4162,7 +4163,7 @@ const TEAM_ES = {
 };
 
 const VENUE_EN = {
-  'Mexico City Stadium':'Estadio Banorte (Ciudad de México)',
+  'Mexico City Stadium':'Estadio Banorte (Mexico City)',
   'Estadio Guadalajara':'Estadio Akron (Guadalajara)',
   'Estadio Monterrey':'Estadio BBVA (Monterrey)',
   'Los Angeles Stadium':'SoFi Stadium (Los Angeles)',
@@ -4290,7 +4291,31 @@ const STRINGS = {
   toggle_teams:  {en:'Teams',   es:'Equipos'},
   // Bracket
   auto_sim:     {en:'(auto)',   es:'(auto)'},
-  // Flores/Baumgartner TBD
+  // Overview stat cards
+  stat_matches_played: {en:'Matches Played',       es:'Partidos Jugados'},
+  stat_goals_scored:   {en:'Goals Scored',          es:'Goles Anotados'},
+  stat_groups_complete:{en:'Groups Complete',        es:'Grupos Completos'},
+  stat_teams_qualified:{en:'Teams Qualified',        es:'Equipos Clasificados'},
+  stat_of_groups:      {en:'of 12 groups',           es:'de 12 grupos'},
+  stat_per_match:      {en:'per match avg',          es:'promedio por partido'},
+  stat_top2:           {en:'Top 2 from completed groups', es:'Top 2 de grupos completados'},
+  stat_of_matches:     {en:'of {n} group matches',   es:'de {n} partidos de grupos'},
+  // Qualified teams
+  qual_teams:          {en:'Qualified Teams',        es:'Equipos Clasificados'},
+  qual_complete:       {en:'Complete group matches to see qualifiers', es:'Completa partidos de grupos para ver clasificados'},
+  qual_legend_top2:    {en:'Qualified (Top 2)',       es:'Clasificado (Top 2)'},
+  qual_legend_3rd:     {en:'Play-in eligible (3rd)', es:'Repechaje (3ro)'},
+  // Group card
+  group_label:         {en:'Group',                  es:'Grupo'},
+  group_played:        {en:'played',                 es:'jugados'},
+  matches_tap:         {en:'Matches — tap to set score', es:'Partidos — selecciona para ingresar marcador'},
+  // KO
+  world_champion:      {en:'World Champion',         es:'Campeón del Mundo'},
+  result_locked_text:  {en:'Result locked',          es:'Resultado bloqueado'},
+  // Results subtab buttons
+  res_group_stage:     {en:'Group Stage',            es:'Fase de Grupos'},
+  res_knockout:        {en:'Knockout',               es:'Eliminatorias'},
+    // Flores/Baumgartner TBD
   flores_tbd:   {en:'Flores replacement pending',      es:'Reemplazo de Flores pendiente'},
   baumgartner_tbd:{en:'Baumgartner replacement pending',es:'Reemplazo de Baumgartner pendiente'},
 };
@@ -4386,6 +4411,16 @@ function updateStaticLabels() {
     const subEl   = page.querySelector('.section-sub');
     if(titleEl) titleEl.textContent = t(titleKey);
     if(subEl)   subEl.textContent   = t(subKey);
+  });
+  // Legend items
+  const legTop2 = document.getElementById('legend-top2');
+  const leg3rd  = document.getElementById('legend-3rd');
+  if(legTop2) legTop2.textContent = t('qual_legend_top2');
+  if(leg3rd)  leg3rd.textContent  = t('qual_legend_3rd');
+  // data-i18n buttons (Results subtabs etc)
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(key) el.textContent = t(key);
   });
   // Last updated label
   const luLabel = document.getElementById('last-updated-label');
@@ -4510,7 +4545,9 @@ function renderTodayMatches(){
   }
   let html='<div class="today-box"><div class="today-box-title">'+title+'</div>';
   matches.forEach(m=>{
-    const timeStr=m.kickoffDt?formatKickoff(m.kickoffDt):m.date||'';
+    const kickoffDateStr=m.kickoffDt?m.kickoffDt.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}):m.date||'';
+    const kickoffTimeStr=m.kickoffDt?formatKickoff(m.kickoffDt):'';
+    const timeStr=kickoffDateStr&&kickoffTimeStr?(kickoffDateStr+' · '+kickoffTimeStr):(kickoffDateStr||kickoffTimeStr);
     const liveHtml=m.live?'<span class="live-badge">\u25cf LIVE</span>':'';
     const scoreHtml=m.score?'<div class="today-score">'+m.score+'</div>':
                     m.live?'<div class="today-score" id="live-score-'+(m.matchNum||'')+'">–</div>':'';
