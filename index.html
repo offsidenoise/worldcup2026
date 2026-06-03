@@ -610,7 +610,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
 <header>
   <div class="header-inner">
-    <div class="logo">2026 <span>World Cup</span></div>
+    <div class="logo"><img src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;">World Cup <span>2026</span></div>
     <div class="header-right">
       <div class="refresh-wrap">
         <button class="header-refresh-btn" id="header-refresh-btn" onclick="globalRefresh()" title="Refresh live scores">⟳</button>
@@ -3618,7 +3618,7 @@ let statsCardsToggle = 'players';
 let statsDrillTeam = null;
 function thH(tkey,sk,col,lbl,isNum){
   const cls=(isNum?'num ':'')+' '+(sk.col===col?'sorted':'');
-  return '<th class="'+cls+'" onclick="thClick('+JSON.stringify(tkey)+','+JSON.stringify(col)+','+isNum+')">'
+  return '<th class="'+cls+'" onclick="thClick(\''+tkey+'\',\''+col+'\','+isNum+')">'
     +lbl+sortArrow(tkey,col)+'</th>';
 }
 let sortState = {
