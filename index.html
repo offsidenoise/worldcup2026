@@ -269,6 +269,7 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 }
 .pick-btn:hover, .pick-btn-draw:hover { border-color:#3d4f6e; color:var(--text); }
 .pick-btn.home-on  { border-color:var(--green); color:var(--green); background:rgba(46,204,113,0.08); }
+.pick-btn.auto-pick { opacity:0.45; }
 .pick-btn-draw.draw-on { border-color:var(--draw-col); color:var(--draw-col); background:rgba(148,163,184,0.08); }
 .pick-btn.away-on  { border-color:var(--red); color:var(--red); background:rgba(239,68,68,0.08); }
 
@@ -694,6 +695,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <div id="res-groups-pane">
       <div class="legend" style="margin-bottom:16px;">
         <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="legend-top2">Qualified (Top 2)</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green); opacity:0.6"></div><span id="legend-best3rd">Best 3rd (qualified)</span></div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div><span id="legend-3rd">Play-in eligible (3rd)</span></div>
       </div>
       <div class="groups-grid" id="groups-grid"></div>
@@ -701,7 +703,10 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Knockout subview -->
     <div id="res-knockout-pane" style="display:none;">
-      <div class="section-sub" style="margin-top:0;margin-bottom:16px;">Click a team name to advance them · Use the score button on each card to enter the result</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="section-sub" style="margin:0;">Click a team name to advance them · Use the score button on each card to enter the result</div>
+        <button onclick="resetKOBracket()" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);color:#e74c3c;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:4px;cursor:pointer;white-space:nowrap;margin-left:12px;">Reset Bracket</button>
+      </div>
       <div class="bracket-container">
         <div class="bracket-wrap" id="bracket-wrap"></div>
       </div>
@@ -1078,6 +1083,23 @@ function getPolyOdds(home, away) {
   if(POLY_ODDS[key]) return {pHome:POLY_ODDS[key][0], pDraw:POLY_ODDS[key][1], pAway:POLY_ODDS[key][2]};
   if(POLY_ODDS[rkey]) return {pHome:POLY_ODDS[rkey][2], pDraw:POLY_ODDS[rkey][1], pAway:POLY_ODDS[rkey][0]};
   return null;
+}
+
+function predictScore(home, away) {
+  const {probs:p} = blendedProb(home, away);
+  const pHome=p[0], pDraw=p[1], pAway=p[2];
+  const maxWin = Math.max(pHome, pAway);
+  const isDraw = pDraw>=28 && maxWin-pDraw<=12;
+  if(isDraw) return pDraw>=35 ? [1,1] : [0,0];
+  if(pHome>pAway) {
+    if(pHome>=90) return [3,0];
+    if(pHome>=65) return [2,0];
+    return [1,0];
+  } else {
+    if(pAway>=90) return [0,3];
+    if(pAway>=65) return [0,2];
+    return [0,1];
+  }
 }
 
 function blendedProb(home, away) {
@@ -1498,17 +1520,20 @@ function calcPredStandings(group) {
     } else {
       const pk = state.predictions.group[`${group}_${mi}`];
       const outcome = pk || (()=>{
-        const sA=compositeStrength(home), sB=compositeStrength(away);
-        const diff=Math.abs(sA-sB);
-        const p=calcProb(home,away);
-        const mx=Math.max(p[0],p[1],p[2]);
-        if(diff<=20) return 'draw';
-        if(mx===p[1]) return 'draw';
+        const {probs:p}=blendedProb(home,away);
+        const maxWin=Math.max(p[0],p[2]);
+        if(p[1]>=28 && maxWin-p[1]<=12) return 'draw';
         return p[0]>=p[2]?'home':'away';
       })();
-      hg = outcome==='home'?1:outcome==='draw'?0:0;
-      ag = outcome==='away'?1:outcome==='draw'?0:0;
-      if(outcome==='draw'){hg=0;ag=0;}
+      // Use predicted score if available, otherwise derive from outcome
+      const scoreKey=`${group}_${mi}`;
+      const sc=state.predictions.scores&&state.predictions.scores[scoreKey];
+      if(sc){ hg=sc[0]; ag=sc[1]; }
+      else {
+        // predictScore already returns [homeGoals, awayGoals] correctly
+        const derived=predictScore(home,away);
+        hg=derived[0]; ag=derived[1];
+      }
     }
     outcomes.push({home,away,hg,ag});
     table[home].gf+=hg; table[home].gd+=(hg-ag);
@@ -1702,10 +1727,17 @@ function getKOMatchTeams(matchNum) {
     function resolveWithIdx(slotCode, b3idx) {
       if(slotCode.match(/^[A-L][12]$/)) return getSlotTeam(slotCode);
       if(slotCode==='3rd') {
+        // Only show actual team if all groups are complete
+        const allGroupsDone=GROUP_KEYS.every(g=>allMatchesPlayed(g));
+        // Show possible source groups while group stage is ongoing
+      const thirdLabels={'74':'A/B/C/D/F','77':'C/D/F/G/H','79':'C/E/F/H/I',
+        '80':'E/H/I/J/K','81':'B/E/F/I/J','82':'A/E/H/I/J','85':'E/F/G/I/J','87':'A/B/C/D/G/H/K/L'};
+      const grpOptions=thirdLabels[String(matchNum)]||'?';
+      if(!allGroupsDone) return {name:`3rd (${grpOptions})`, preliminary:true, slot:`3rd (${grpOptions})`};
         const thirds=getBestThirds();
         const t=thirds[b3idx];
         if(!t) return {name:'3rd', preliminary:true, slot:'3rd'};
-        return {name:t.name, preliminary:!allMatchesPlayed(t.grp), slot:`3rd (${t.grp})`};
+        return {name:t.name, preliminary:false, slot:`3rd (${t.grp})`};
       }
       return {name:slotCode, preliminary:true, slot:slotCode};
     }
@@ -2094,7 +2126,9 @@ function renderGroups(){
     const card=document.createElement('div');
     card.className='group-card'; card.style.animationDelay=`${gi*0.04}s`;
     const rowsHtml=standings.map((t,i)=>{
-      const rc=i<2?'qualified-row':i===2?'playoff-row':'';
+      // Check if 3rd place team qualifies as best third
+      const best8thirds = allMatchesPlayed(g) ? getBestThirds().map(t=>t.name) : [];
+      const rc=i<2?'qualified-row':i===2&&best8thirds.includes(t.name)?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
       const fd=t.form.slice(-3).map(f=>`<div class="form-dot form-${f.toLowerCase()}"></div>`).join('');
       return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" data-squad="${t.name}" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
@@ -2175,12 +2209,16 @@ function renderKnockout(){
 function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim, homeDisplay, awayDisplay){
   const el=document.createElement('div'); el.className='bracket-match';
   const hD=tTeam(homeDisplay||home||'TBD'), aD=tTeam(awayDisplay||away||'TBD');
-  const hW=winner&&winner===home, aW=winner&&winner===away;
   const m=state.knockout[mn]||{};
+  // Only show winner highlight if there's an actual score entered
+  const confirmedWinner = m.homeScore!=null ? winner : null;
+  const hW=confirmedWinner&&confirmedWinner===home, aW=confirmedWinner&&confirmedWinner===away;
   const f=fix||{};
 
-  const hClass = hW?'winner' : winner?'loser' : homePrelim?'prelim' : '';
-  const aClass = aW?'winner' : winner?'loser' : awayPrelim?'prelim' : '';
+  // Use 'winner' class only for score-confirmed results, 'prelim' for manual advances
+  const manualWinner = !m.homeScore&&winner ? winner : null;
+  const hClass = hW?'winner' : (confirmedWinner&&!hW)?'loser' : manualWinner===home?'prelim' : homePrelim?'prelim' : '';
+  const aClass = aW?'winner' : (confirmedWinner&&!aW)?'loser' : manualWinner===away?'prelim' : awayPrelim?'prelim' : '';
   // Click uses the real team name (home/away), not the display string
   const hClickTeam = home||'';
   const aClickTeam = away||'';
@@ -2362,7 +2400,11 @@ function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
   let html=`<div>`;
-  for(let mi=0; mi<state.groupMatches[g].length; mi++){
+  // Sort matches chronologically by fixture time
+  const sortedIdxs=Array.from({length:state.groupMatches[g].length},(_,i)=>i)
+    .sort((a,b)=>fixtureSortKey(state.groupMatches[g][a].home,state.groupMatches[g][a].away)
+                -fixtureSortKey(state.groupMatches[g][b].home,state.groupMatches[g][b].away));
+  for(const mi of sortedIdxs){
     const match=state.groupMatches[g][mi];
     const home=match.home, away=match.away;
     const locked=match.homeScore!==null;
@@ -2401,10 +2443,16 @@ function renderPredGroup(g, container){
   // Predicted standings for this group
   html+=`<div class="pred-standings">
     <div class="pred-stand-header"><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
+  // Check if predicted 3rd qualifies as best third
+  const predBest8=GROUP_KEYS.map(gg=>({...calcPredStandings(gg)[2],grp:gg}))
+    .filter(x=>x&&x.n)
+    .sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf)
+    .slice(0,8).map(x=>x.n);
   st.forEach((t,i)=>{
-    const adv=i<2;
+    const adv=i<2||(i===2&&predBest8.includes(t.n));
+    const isBest3rd=i===2&&predBest8.includes(t.n);
     html+=`<div class="pred-srow${adv?' adv':''}">
-      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
+      <span>${adv?`<span class="pred-qual-bar"${isBest3rd?' style="background:var(--accent2);opacity:0.7;"':''}></span>`:''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''} team-squad-link" data-squad="${t.n}" style="cursor:pointer;">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
       <span class="pred-pts">${t.pts}</span>
@@ -2459,11 +2507,14 @@ function renderPredKO(roundKey, container){
   <div class="prob-w1" style="width:${Math.round(pA)}%"><span class="prob-lbl">${Math.round(pA)}%</span></div>
   <div class="prob-w2" style="width:${Math.round(pB)}%"><span class="prob-lbl">${Math.round(pB)}%</span></div>
 </div>`;
-      html+=`<div class="pick-btns-ko">
-        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredKO(${mn},'home')">${hF} ${tTeam(home)}</button>
-        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredKO(${mn},'away')">${tTeam(away)} ${aF}</button>
-      </div>`;
       const bm=bracket[mn];
+      const autoW=bm&&!pick?bm.winner:null;
+      const hOn=pick==='home'||autoW===home?' home-on':'';
+      const aOn=pick==='away'||autoW===away?' away-on':'';
+      html+=`<div class="pick-btns-ko">
+        <button class="pick-btn${hOn}" onclick="setPredKO(${mn},'home')">${hF} ${tTeam(home)}</button>
+        <button class="pick-btn${aOn}" onclick="setPredKO(${mn},'away')">${tTeam(away)} ${aF}</button>
+      </div>`;
       if(bm&&bm.winner){
         const isAuto=bm.autoSim&&!pick;
         html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
@@ -2482,8 +2533,15 @@ function renderPredKO(roundKey, container){
 // ============================================================
 function setPredGroup(g, mi, val){
   const key=`${g}_${mi}`;
-  if(state.predictions.group[key]===val) delete state.predictions.group[key];
-  else state.predictions.group[key]=val;
+  if(state.predictions.group[key]===val){
+    delete state.predictions.group[key];
+    if(state.predictions.scores) delete state.predictions.scores[key];
+  } else {
+    state.predictions.group[key]=val;
+    if(!state.predictions.scores) state.predictions.scores={};
+    const match=state.groupMatches[g][mi];
+    if(match) state.predictions.scores[key]=predictScore(match.home,match.away);
+  }
   saveState();
   // Re-render only this group's page — no full swipe rebuild
   const page=document.getElementById(`pred-group-page-${g}`);
@@ -2498,8 +2556,10 @@ function setPredKO(mn, val){
   if(state.predictions.knockout[mn]===val) delete state.predictions.knockout[mn];
   else state.predictions.knockout[mn]=val;
   saveState();
-  const page=document.getElementById(`pred-ko-page-${predKOTab}`);
-  if(page) renderPredKO(predKOTab, page);
+  // Picks cascade through rounds — rebuild all KO pages
+  const inner=document.getElementById('pred-ko-swipe-inner');
+  if(inner) inner.innerHTML='';
+  renderPredKOSwipe();
 }
 
 function autoPredictAll(){
@@ -2515,17 +2575,10 @@ function autoPredictAll(){
       else state.predictions.group[`${g}_${mi}`]='away';
     });
   });
-  // KO rounds sequentially
-  const allKO=[...R32_SEEDS,...R16_MATCHES,...QF_MATCHES,...SF_MATCHES,{matchNum:104}];
-  allKO.forEach(s=>{
-    const bracket=buildPredBracket();
-    const mn=s.matchNum;
-    const m=bracket[mn];
-    if(!m||!m.home||!m.away) return;
-    if(state.knockout[mn]?.winner) return;
-    const [pA,pB]=calcProbKO(m.home,m.away);
-    state.predictions.knockout[mn]=pA>=pB?'home':'away';
-  });
+  // KO bracket is driven purely by buildPredBracket auto-sim
+  // Do NOT store KO picks from auto-predict — only manual user taps set KO picks
+  // Clear any previously auto-stored KO picks to avoid stale state
+  state.predictions.knockout={};
   saveState();
   // Force rebuild of all swipe pages since picks changed
   const gi=document.getElementById('pred-group-swipe-inner');
@@ -2535,8 +2588,18 @@ function autoPredictAll(){
   renderPredictions();
 }
 
+function resetKOBracket(){
+  // Reset all KO match state
+  Object.keys(state.knockout).forEach(mn=>{
+    state.knockout[mn]={home:null,away:null,homeScore:null,awayScore:null,winner:null,loser:null};
+  });
+  // Also re-init to ensure all match numbers are present
+  initKnockout();
+  saveState();
+  renderKnockout();
+}
 function resetPredictions(){
-  state.predictions={group:{},knockout:{}};
+  state.predictions={group:{},knockout:{},scores:{}};
   saveState();
   const gi=document.getElementById('pred-group-swipe-inner');
   const ki=document.getElementById('pred-ko-swipe-inner');
@@ -4466,6 +4529,7 @@ const STRINGS = {
   qual_teams:          {en:'Qualified Teams',        es:'Equipos Clasificados'},
   qual_complete:       {en:'Complete group matches to see qualifiers', es:'Completa partidos de grupos para ver clasificados'},
   qual_legend_top2:    {en:'Qualified (Top 2)',       es:'Clasificado (Top 2)'},
+  qual_legend_best3rd: {en:'Best 3rd (qualified)',   es:'Mejor 3ro (clasificado)'},
   qual_legend_3rd:     {en:'Play-in eligible (3rd)', es:'Repechaje (3ro)'},
   // Group card
   group_label:         {en:'Group',                  es:'Grupo'},
@@ -4588,10 +4652,12 @@ function updateStaticLabels() {
     if(subEl)   subEl.textContent   = t(subKey);
   });
   // Legend items
-  const legTop2 = document.getElementById('legend-top2');
-  const leg3rd  = document.getElementById('legend-3rd');
-  if(legTop2) legTop2.textContent = t('qual_legend_top2');
-  if(leg3rd)  leg3rd.textContent  = t('qual_legend_3rd');
+  const legTop2    = document.getElementById('legend-top2');
+  const legBest3rd = document.getElementById('legend-best3rd');
+  const leg3rd     = document.getElementById('legend-3rd');
+  if(legTop2)    legTop2.textContent    = t('qual_legend_top2');
+  if(legBest3rd) legBest3rd.textContent = t('qual_legend_best3rd');
+  if(leg3rd)     leg3rd.textContent     = t('qual_legend_3rd');
   // data-i18n buttons (Results subtabs etc)
   document.querySelectorAll('[data-i18n]').forEach(el=>{
     const key = el.getAttribute('data-i18n');
@@ -4930,7 +4996,8 @@ document.getElementById('squad-modal-overlay').addEventListener('click', functio
 document.addEventListener('click', function(e) {
   const link = e.target.closest('[data-squad]');
   if(link) {
-    e.preventDefault(); 
+    e.preventDefault();
+    e.stopPropagation();
     openSquadModal(link.dataset.squad); 
   }
 });
