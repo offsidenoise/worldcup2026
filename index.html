@@ -2223,6 +2223,15 @@ async function renderPredGroupSwipe(){
   heading.innerHTML=
     `<span class="pred-group-big-letter">${predGroupTab}</span>`+
     `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+tTeam(t)).join(' · ')}</span>`;
+  // PM status indicator
+  let pmStatus=document.getElementById('pm-status');
+  if(!pmStatus){
+    pmStatus=document.createElement('div');
+    pmStatus.id='pm-status';
+    pmStatus.style.cssText='font-family:"Barlow Condensed",sans-serif;font-size:0.72rem;color:var(--muted);margin-bottom:8px;letter-spacing:0.5px;';
+    heading.parentNode.insertBefore(pmStatus, heading.nextSibling);
+  }
+  pmStatus.textContent='Polymarket: loading…';
 
   // Step 1: Render all pages instantly with model-only probs (no blink, no wait)
   inner.innerHTML='';
@@ -2262,12 +2271,18 @@ async function renderPredGroupSwipe(){
       .map(m=>fetchPolyOdds(polySlug(m.home,m.away,getGroupFixtureDate(m.home,m.away))));
     const results=await Promise.allSettled(fetches);
     const anyBlend=results.some(r=>r.status==='fulfilled'&&r.value);
+    const pmEl=document.getElementById('pm-status');
     if(anyBlend){
-      // Silently re-render just the current page with blended probs
+      if(pmEl) pmEl.innerHTML='Polymarket: <span style="color:#7c3aed;font-weight:700;">Connected ✓</span>';
       const page=document.getElementById(`pred-group-page-${g}`);
       if(page) await renderPredGroup(g, page);
+    } else {
+      if(pmEl) pmEl.textContent='Polymarket: unavailable — using model only';
     }
-  } catch(e) {}
+  } catch(e) {
+    const pmEl=document.getElementById('pm-status');
+    if(pmEl) pmEl.textContent='Polymarket: error — using model only';
+  }
 }
 
 async function renderPredKOSwipe(){
