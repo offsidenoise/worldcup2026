@@ -2206,36 +2206,60 @@ async function renderPredGroupSwipe(){
   const heading=document.getElementById('pred-group-heading');
   const idx=GROUP_KEYS.indexOf(predGroupTab);
 
-  // Pre-fetch ALL groups' Polymarket odds in parallel before rendering
-  try {
-    const fetches = [];
-    GROUP_KEYS.forEach(g => {
-      state.groupMatches[g]
-        .filter(m => m.homeScore === null)
-        .forEach(m => {
-          const s = polySlug(m.home, m.away, getGroupFixtureDate(m.home, m.away));
-          if(s) fetches.push(fetchPolyOdds(s));
-        });
-    });
-    await Promise.allSettled(fetches);
-  } catch(e) {}
-
-  // Render tab buttons
+  // Update tab buttons (no re-render needed for this)
   document.getElementById('pred-group-tabs').innerHTML = GROUP_KEYS.map(g=>
     `<button class="pred-group-btn${predGroupTab===g?' active':''}" onclick="setPredView('${g}')">${g}</button>`
   ).join('');
 
-  // Build all group pages
-  inner.innerHTML='';
-  for(const g of GROUP_KEYS){
-    const page=document.createElement('div');
-    page.className='swipe-page';
-    page.id=`pred-group-page-${g}`;
-    await renderPredGroup(g, page);
-    inner.appendChild(page);
+  // Update heading for current group
+  const teams=GROUPS[predGroupTab];
+  heading.innerHTML=
+    `<span class="pred-group-big-letter">${predGroupTab}</span>`+
+    `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+tTeam(t)).join(' · ')}</span>`;
+
+  // Only rebuild pages if not already built (avoids blink on tab switch)
+  const alreadyBuilt = GROUP_KEYS.every(g => document.getElementById(`pred-group-page-${g}`));
+
+  if(!alreadyBuilt){
+    // First render: pre-fetch all Polymarket odds then build all pages
+    try {
+      const fetches = [];
+      GROUP_KEYS.forEach(g => {
+        state.groupMatches[g]
+          .filter(m => m.homeScore === null)
+          .forEach(m => {
+            const s = polySlug(m.home, m.away, getGroupFixtureDate(m.home, m.away));
+            if(s) fetches.push(fetchPolyOdds(s));
+          });
+      });
+      await Promise.allSettled(fetches);
+    } catch(e) {}
+
+    inner.innerHTML='';
+    for(const g of GROUP_KEYS){
+      const page=document.createElement('div');
+      page.className='swipe-page';
+      page.id=`pred-group-page-${g}`;
+      await renderPredGroup(g, page);
+      inner.appendChild(page);
+    }
+
+    // Swipe handling (only needs attaching once)
+    initSwipe('pred-group-swipe-container', function(dir){
+      const cur=GROUP_KEYS.indexOf(predGroupTab);
+      const next=cur+dir;
+      if(next>=0&&next<GROUP_KEYS.length){
+        predGroupTab=GROUP_KEYS[next];
+        renderPredGroupSwipe();
+      }
+    });
+  } else {
+    // Pages already exist — just re-render current group's page (e.g. after a pick)
+    const page=document.getElementById(`pred-group-page-${predGroupTab}`);
+    if(page) await renderPredGroup(predGroupTab, page);
   }
 
-  // Position
+  // Position (instant, no transition to avoid blink)
   inner.style.transition='none';
   inner.style.transform=`translateX(-${idx*100}%)`;
   requestAnimationFrame(()=>{inner.style.transition='transform 0.3s ease';});
@@ -2244,22 +2268,6 @@ async function renderPredGroupSwipe(){
   dots.innerHTML=GROUP_KEYS.map((g,i)=>
     `<div class="swipe-dot${i===idx?' active':''}"></div>`
   ).join('');
-
-  // Heading for current group
-  const teams=GROUPS[predGroupTab];
-  heading.innerHTML=
-    `<span class="pred-group-big-letter">${predGroupTab}</span>`+
-    `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+tTeam(t)).join(' · ')}</span>`;
-
-  // Swipe handling
-  initSwipe('pred-group-swipe-container', function(dir){
-    const cur=GROUP_KEYS.indexOf(predGroupTab);
-    const next=cur+dir;
-    if(next>=0&&next<GROUP_KEYS.length){
-      predGroupTab=GROUP_KEYS[next];
-      renderPredictions();
-    }
-  });
 }
 
 async function renderPredKOSwipe(){
@@ -2267,31 +2275,49 @@ async function renderPredKOSwipe(){
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
 
-  // Pre-fetch Polymarket odds for KO matches with known teams
-  try {
-    const round = KO_ROUNDS.find(r=>r.key===predKOTab);
-    if(round) {
-      const fetches = round.matches.map(mn => {
-        const {home,away} = getKOMatchTeams(mn);
-        if(!home||!away||home==='TBD'||away==='TBD') return Promise.resolve(null);
-        return fetchPolyOdds(polySlug(home,away,getKOFixtureDate(mn)));
-      });
-      await Promise.allSettled(fetches);
-    }
-  } catch(e) {}
-
-  // Render tab buttons
+  // Update tab buttons
   document.getElementById('pred-ko-tabs').innerHTML = KO_ROUNDS.map(r=>
     `<button class="pred-ko-btn${predKOTab===r.key?' active':''}" onclick="setPredView('${r.key}')">${r.label}</button>`
   ).join('');
 
-  inner.innerHTML='';
-  for(const r of KO_ROUNDS){
-    const page=document.createElement('div');
-    page.className='swipe-page';
-    page.id=`pred-ko-page-${r.key}`;
-    await renderPredKO(r.key, page);
-    inner.appendChild(page);
+  const alreadyBuilt = KO_ROUNDS.every(r => document.getElementById(`pred-ko-page-${r.key}`));
+
+  if(!alreadyBuilt){
+    // Pre-fetch KO odds for rounds with known teams
+    try {
+      const fetches = [];
+      KO_ROUNDS.forEach(round => {
+        round.matches.forEach(mn => {
+          const {home,away} = getKOMatchTeams(mn);
+          if(!home||!away||home==='TBD'||away==='TBD') return;
+          const s = polySlug(home,away,getKOFixtureDate(mn));
+          if(s) fetches.push(fetchPolyOdds(s));
+        });
+      });
+      await Promise.allSettled(fetches);
+    } catch(e) {}
+
+    inner.innerHTML='';
+    for(const r of KO_ROUNDS){
+      const page=document.createElement('div');
+      page.className='swipe-page';
+      page.id=`pred-ko-page-${r.key}`;
+      await renderPredKO(r.key, page);
+      inner.appendChild(page);
+    }
+
+    initSwipe('pred-ko-swipe-container', function(dir){
+      const cur=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
+      const next=cur+dir;
+      if(next>=0&&next<KO_ROUNDS.length){
+        predKOTab=KO_ROUNDS[next].key;
+        renderPredKOSwipe();
+      }
+    });
+  } else {
+    // Just re-render current round's page
+    const page=document.getElementById(`pred-ko-page-${predKOTab}`);
+    if(page) await renderPredKO(predKOTab, page);
   }
 
   inner.style.transition='none';
@@ -2301,15 +2327,6 @@ async function renderPredKOSwipe(){
   dots.innerHTML=KO_ROUNDS.map((r,i)=>
     `<div class="swipe-dot${i===idx?' active':''}"></div>`
   ).join('');
-
-  initSwipe('pred-ko-swipe-container', function(dir){
-    const cur=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
-    const next=cur+dir;
-    if(next>=0&&next<KO_ROUNDS.length){
-      predKOTab=KO_ROUNDS[next].key;
-      renderPredictions();
-    }
-  });
 }
 
 // Generic swipe initializer — attaches touch/mouse handlers to a container
@@ -2467,12 +2484,23 @@ function setPredGroup(g, mi, val){
   const key=`${g}_${mi}`;
   if(state.predictions.group[key]===val) delete state.predictions.group[key];
   else state.predictions.group[key]=val;
-  saveState(); renderPredictions();
+  saveState();
+  // Re-render only the current group page (no full swipe rebuild)
+  const page=document.getElementById(`pred-group-page-${g}`);
+  if(page) renderPredGroup(g, page);
+  // Update progress bar
+  const gpicked=Object.keys(state.predictions.group).filter(k=>state.predictions.group[k]).length;
+  const glocked=GROUP_KEYS.reduce((s,g)=>s+state.groupMatches[g].filter(m=>m.homeScore!==null).length,0);
+  document.getElementById('pred-prog-count').textContent=`${gpicked+glocked} / 72 group`;
+  document.getElementById('pred-prog-fill').style.width=`${(gpicked+glocked)/72*100}%`;
 }
 function setPredKO(mn, val){
   if(state.predictions.knockout[mn]===val) delete state.predictions.knockout[mn];
   else state.predictions.knockout[mn]=val;
-  saveState(); renderPredictions();
+  saveState();
+  // Re-render only the current KO page
+  const page=document.getElementById(`pred-ko-page-${predKOTab}`);
+  if(page) renderPredKO(predKOTab, page);
 }
 
 function autoPredictAll(){
