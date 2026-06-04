@@ -990,86 +990,60 @@ const FLAGS = {
 
 
 // ============================================================
-// POLYMARKET INTEGRATION — 50/50 blend with model
+// POLYMARKET ODDS — hardcoded from polymarket.com/sports/world-cup/games
+// Captured June 4, 2026. Format: [pHome, pDraw, pAway]
+// MD1 has full coverage; MD2/MD3 use model only until markets open.
 // ============================================================
-const POLY_CODES = {
-  'Mexico':'mex','South Africa':'rsa','South Korea':'kr','Czechia':'cze',
-  'Canada':'can','Bosnia':'bih','Qatar':'qat','Switzerland':'sui',
-  'Brazil':'bra','Morocco':'mar','Haiti':'hai','Scotland':'sco',
-  'USA':'us','Paraguay':'par','Australia':'aus','Türkiye':'tur',
-  'Germany':'ger','Curaçao':'cuw',"Côte d'Ivoire":'civ','Ecuador':'ecu',
-  'Netherlands':'ned','Japan':'jpn','Sweden':'swe','Tunisia':'tun',
-  'Belgium':'bel','Egypt':'egy','IR Iran':'irn','New Zealand':'nzl',
-  'Spain':'esp','Cabo Verde':'cpv','Saudi Arabia':'ksa','Uruguay':'uru',
-  'France':'fra','Senegal':'sen','Iraq':'irq','Norway':'nor',
-  'Argentina':'arg','Algeria':'dza','Austria':'aut','Jordan':'jor',
-  'Portugal':'por','DR Congo':'cod','Uzbekistan':'uzb','Colombia':'col',
-  'England':'eng','Croatia':'cro','Ghana':'gha','Panama':'pan',
+const POLY_ODDS = {
+  // ── MATCHDAY 1 ──────────────────────────────────────────────
+  'Mexico_South Africa':       [70, 21, 11],
+  'South Korea_Czechia':       [37, 32, 34],
+  'Canada_Bosnia':             [54, 27, 21],
+  'USA_Paraguay':              [49, 28, 24],
+  'Qatar_Switzerland':         [ 7, 14, 80],
+  'Brazil_Morocco':            [61, 25, 17],
+  'Haiti_Scotland':            [14, 20, 69],
+  'Australia_Türkiye':         [20, 27, 55],
+  'Germany_Curaçao':           [95,  5,  2],
+  'Netherlands_Japan':         [49, 26, 27],
+  "Côte d'Ivoire_Ecuador":     [26, 34, 42],
+  'Sweden_Tunisia':            [51, 29, 22],
+  'Spain_Cabo Verde':          [90,  8,  5],
+  'Belgium_Egypt':             [60, 25, 19],
+  'Saudi Arabia_Uruguay':      [14, 22, 65],
+  // ── MATCHDAY 2 & 3 — from screenshot June 24 ────────────────
+  'Bosnia_Qatar':              [61, 25, 17],
+  'Switzerland_Canada':        [47, 30, 27],
+  'Scotland_Brazil':           [12, 20, 70],
+  // More MD2/MD3 to be added as markets open
 };
-const polyCache = {};
-function polySlug(home,away,d){const hc=POLY_CODES[home],ac=POLY_CODES[away];if(!hc||!ac||!d)return null;return 'fifwc-'+hc+'-'+ac+'-'+d;}
-function getGroupFixtureDate(home,away){const n=GROUP_FIXTURE_NUM[home+'_'+away]||GROUP_FIXTURE_NUM[away+'_'+home];const ft=FIXTURE_TIMES[n];return ft?ft.date:null;}
-function getKOFixtureDate(mn){const ft=FIXTURE_TIMES[mn];return ft?ft.date:null;}
-async function fetchPolyOdds(slug){
-  if(!slug)return null;
-  const now=Date.now();const c=polyCache[slug];
-  if(c&&(now-c.ts)<3600000)return c;
-  const PROXY='https://corsproxy.io/?url=';
-  const url='https://gamma-api.polymarket.com/markets?eventSlug='+slug+'&active=true&limit=20';
-  // Fetch with 4-second timeout so render doesn't hang
-  const headers={'Accept':'application/json','Cache-Control':'no-cache'};
-  async function tf(u){
-    try{
-      const ctrl=new AbortController();
-      const timer=setTimeout(()=>ctrl.abort(),3000);
-      const r=await fetch(u,{signal:ctrl.signal,headers});
-      clearTimeout(timer);
-      if(!r.ok) return null;
-      const d=await r.json();
-      if(Array.isArray(d)&&d.length) return d;
-    }catch(e){}
-    return null;
-  }
-  // Try /events endpoint first (returns event with nested markets array)
-  // then /markets endpoint as fallback, both with cache-buster
-  const bust='&_='+Math.floor(Date.now()/300000);
-  const eventsUrl='https://gamma-api.polymarket.com/events?slug='+slug+bust;
-  const eventsData=await tf(eventsUrl)||await tf(PROXY+encodeURIComponent(eventsUrl));
-  // If events endpoint worked, extract nested markets
-  let mkts=null;
-  if(eventsData&&eventsData.length&&eventsData[0].markets){
-    mkts=eventsData[0].markets;
-  } else {
-    // Fallback: try /markets?eventSlug= endpoint
-    mkts=await tf(url+bust)||await tf(PROXY+encodeURIComponent(url+bust));
-  }
-  if(!mkts||!mkts.length)return null;
-  // Use all markets returned (CDN cache-bust already handles slug filtering via URL)
-  for(const m of mkts){
-    const oc=m.outcomes||[];let pr=m.outcomePrices;
-    if(typeof pr==='string'){try{pr=JSON.parse(pr);}catch(e){continue;}}
-    if(!pr||!oc.length)continue;
-    if(oc.length===3){const di=oc.findIndex(o=>o.toLowerCase().includes('draw'));if(di===-1)continue;const oi=[0,1,2].filter(i=>i!==di);const res={pHome:Math.round(parseFloat(pr[oi[0]])*100),pDraw:Math.round(parseFloat(pr[di])*100),pAway:Math.round(parseFloat(pr[oi[1]])*100),isKO:false,ts:now};polyCache[slug]=res;return res;}
-    if(oc.length===2&&!oc.some(o=>o.toLowerCase().includes('draw'))){const res={pHome:Math.round(parseFloat(pr[0])*100),pAway:Math.round(parseFloat(pr[1])*100),isKO:true,ts:now};polyCache[slug]=res;return res;}
-  }
+
+function getPolyOdds(home, away) {
+  const key = home+'_'+away;
+  const rkey = away+'_'+home;
+  if(POLY_ODDS[key]) return {pHome:POLY_ODDS[key][0], pDraw:POLY_ODDS[key][1], pAway:POLY_ODDS[key][2]};
+  if(POLY_ODDS[rkey]) return {pHome:POLY_ODDS[rkey][2], pDraw:POLY_ODDS[rkey][1], pAway:POLY_ODDS[rkey][0]};
   return null;
 }
-async function blendedProb(home,away,d){
-  const model=calcProb(home,away);
-  try{const poly=await fetchPolyOdds(polySlug(home,away,d));if(poly&&!poly.isKO){const bH=Math.round((model[0]+poly.pHome)/2);const bD=Math.round((model[1]+poly.pDraw)/2);const bA=Math.max(1,100-bH-bD);return{probs:[Math.max(1,bH),Math.max(1,bD),bA],source:'blend'};}}catch(e){}
-  return{probs:model,source:'model'};
+
+function blendedProb(home, away) {
+  const model = calcProb(home, away);
+  const poly = getPolyOdds(home, away);
+  if(poly) {
+    const bH = Math.round((model[0] + poly.pHome) / 2);
+    const bD = Math.round((model[1] + poly.pDraw) / 2);
+    const bA = Math.max(1, 100 - bH - bD);
+    return { probs:[Math.max(1,bH), Math.max(1,bD), bA], source:'blend' };
+  }
+  return { probs:model, source:'model' };
 }
-async function blendedProbKO(home,away,d){
-  const model=calcProbKO(home,away);
-  try{const poly=await fetchPolyOdds(polySlug(home,away,d));if(poly&&poly.isKO){const bH=Math.max(1,Math.round((model[0]+poly.pHome)/2));return{probs:[bH,Math.max(1,100-bH)],source:'blend'};}}catch(e){}
-  return{probs:model,source:'model'};
+
+function blendedProbKO(home, away) {
+  return { probs:calcProbKO(home, away), source:'model' };
 }
-async function refreshPolymarket(){
-  const fetches=[];
-  GROUP_KEYS.forEach(g=>{state.groupMatches[g].forEach(m=>{if(m.homeScore!==null)return;const s=polySlug(m.home,m.away,getGroupFixtureDate(m.home,m.away));if(s)fetches.push(fetchPolyOdds(s));});});
-  [...R32_SEEDS.map(s=>s.matchNum),...R16_MATCHES.map(s=>s.matchNum),...QF_MATCHES.map(s=>s.matchNum),...SF_MATCHES.map(s=>s.matchNum),104].forEach(mn=>{const{home,away}=getKOMatchTeams(mn);if(!home||!away||home==='TBD'||away==='TBD')return;const s=polySlug(home,away,getKOFixtureDate(mn));if(s)fetches.push(fetchPolyOdds(s));});
-  await Promise.allSettled(fetches);
-}
+
+function refreshPolymarket() { /* odds are hardcoded */ }
+
 
 // ── FIXTURE TIMES — UTC kickoff for all 104 matches (worldcuply.com / FIFA) ─
 const FIXTURE_TIMES = {
@@ -2193,7 +2167,7 @@ function setPredView(v){
   renderPredictions();
 }
 
-async function renderPredictions(){
+function renderPredictions(){
   // Progress bar
   const gpicked=Object.keys(state.predictions.group).filter(k=>state.predictions.group[k]).length;
   const glocked=GROUP_KEYS.reduce((s,g)=>s+state.groupMatches[g].filter(m=>m.homeScore!==null).length,0);
@@ -2201,13 +2175,13 @@ async function renderPredictions(){
   document.getElementById('pred-prog-fill').style.width=`${(gpicked+glocked)/72*100}%`;
 
   if(predMainView==='group'){
-    await renderPredGroupSwipe();
+    renderPredGroupSwipe();
   } else {
-    await renderPredKOSwipe();
+    renderPredKOSwipe();
   }
 }
 
-async function renderPredGroupSwipe(){
+function renderPredGroupSwipe(){
   const inner=document.getElementById('pred-group-swipe-inner');
   const dots=document.getElementById('pred-group-dots');
   const heading=document.getElementById('pred-group-heading');
@@ -2231,7 +2205,7 @@ async function renderPredGroupSwipe(){
     const page=document.createElement('div');
     page.className='swipe-page';
     page.id=`pred-group-page-${g}`;
-    await renderPredGroup(g, page);
+    renderPredGroup(g, page);
     inner.appendChild(page);
   }
 
@@ -2255,22 +2229,10 @@ async function renderPredGroupSwipe(){
     }
   });
 
-  // Step 2: Fetch Polymarket odds for current group in background, update if data arrives
-  try {
-    const g=predGroupTab;
-    const fetches=state.groupMatches[g]
-      .filter(m=>m.homeScore===null)
-      .map(m=>fetchPolyOdds(polySlug(m.home,m.away,getGroupFixtureDate(m.home,m.away))));
-    const results=await Promise.allSettled(fetches);
-    const anyBlend=results.some(r=>r.status==='fulfilled'&&r.value);
-    if(anyBlend){
-      const page=document.getElementById(`pred-group-page-${g}`);
-      if(page) await renderPredGroup(g, page);
-    }
-  } catch(e) {}
+
 }
 
-async function renderPredKOSwipe(){
+function renderPredKOSwipe(){
   const inner=document.getElementById('pred-ko-swipe-inner');
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
@@ -2285,7 +2247,7 @@ async function renderPredKOSwipe(){
     const page=document.createElement('div');
     page.className='swipe-page';
     page.id=`pred-ko-page-${r.key}`;
-    await renderPredKO(r.key, page);
+    renderPredKO(r.key, page);
     inner.appendChild(page);
   }
 
@@ -2306,23 +2268,6 @@ async function renderPredKOSwipe(){
     }
   });
 
-  // Fetch Poly odds for current round in background
-  try {
-    const round=KO_ROUNDS.find(r=>r.key===predKOTab);
-    if(round){
-      const fetches=round.matches.map(mn=>{
-        const {home,away}=getKOMatchTeams(mn);
-        if(!home||!away||home==='TBD'||away==='TBD') return Promise.resolve(null);
-        return fetchPolyOdds(polySlug(home,away,getKOFixtureDate(mn)));
-      });
-      const results=await Promise.allSettled(fetches);
-      const anyBlend=results.some(r=>r.status==='fulfilled'&&r.value);
-      if(anyBlend){
-        const page=document.getElementById(`pred-ko-page-${predKOTab}`);
-        if(page) await renderPredKO(predKOTab, page);
-      }
-    }
-  } catch(e) {}
 }
 
 // Generic swipe initializer — attaches touch/mouse handlers to a container
@@ -2357,7 +2302,7 @@ function initSwipe(containerId, onSwipe){
   },{passive:true});
 }
 
-async function renderPredGroup(g, container){
+function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
   let html=`<div>`;
@@ -2368,8 +2313,7 @@ async function renderPredGroup(g, container){
     const fix=getGroupFixture(home,away);
     const pick=state.predictions.group[`${g}_${mi}`];
     const effective=effectiveGroupOutcome(g,mi);
-    const _gfd=getGroupFixtureDate(home,away);
-    const {probs:p,source:pSrc}=locked?{probs:calcProb(home,away),source:'model'}:await blendedProb(home,away,_gfd);
+    const {probs:p,source:pSrc}=locked?{probs:calcProb(home,away),source:'model'}:blendedProb(home,away);
     const hF=FLAGS[home]||'', aF=FLAGS[away]||'';
 
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
@@ -2411,7 +2355,7 @@ async function renderPredGroup(g, container){
   container.innerHTML=html;
 }
 
-async function renderPredKO(roundKey, container){
+function renderPredKO(roundKey, container){
   const bracket=buildPredBracket();
   const roundDef=KO_ROUNDS.find(r=>r.key===roundKey);
   if(!roundDef||!container){return;}
@@ -2451,8 +2395,7 @@ async function renderPredKO(roundKey, container){
     if(locked){
       html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Advanced: <strong>${tTeam(realM.winner)}</strong></div>`;
     } else if(home&&away){
-      const _kfd=getKOFixtureDate(mn);
-      const {probs:[pA,pB],source:koSrc}=await blendedProbKO(home,away,_kfd);
+      const {probs:[pA,pB],source:koSrc}=blendedProbKO(home,away);
       html+=`<div class="prob-bar"><div class="prob-w1" style="width:${Math.round(pA)}%"></div><div class="prob-w2" style="width:${Math.round(pB)}%"></div></div>`;
       html+=`<div class="prob-labels"><span>${Math.round(pA)}% Win</span><span></span><span>Win ${Math.round(pB)}%</span></div>`;
       html+=`<div class="pick-btns-ko">
@@ -4903,32 +4846,13 @@ document.addEventListener('touchend', function(e) {
   if(link) { e.preventDefault(); openSquadModal(link.dataset.squad); }
 }, {passive:false});
 
-setInterval(async function(){await refreshPolymarket();if(document.getElementById('page-predictions').classList.contains('active'))renderPredictions();},3600000);
+// Polymarket odds hardcoded — no hourly refresh needed
 window.addEventListener('unhandledrejection', function(e) {
   console.warn('[PM Error]', e.reason);
 });
 loadState();
 initState();
-// Background Polymarket fetch — runs silently after page loads
-// When data arrives, re-render predictions if that tab is open
-setTimeout(async function(){
-  try {
-    const fetches=[];
-    GROUP_KEYS.forEach(g=>{
-      state.groupMatches[g].forEach(m=>{
-        if(m.homeScore!==null) return;
-        const s=polySlug(m.home,m.away,getGroupFixtureDate(m.home,m.away));
-        if(s) fetches.push(fetchPolyOdds(s));
-      });
-    });
-    await Promise.allSettled(fetches);
-    // If predictions tab is open, silently update current group page
-    if(document.getElementById('page-predictions').classList.contains('active')){
-      const page=document.getElementById('pred-group-page-'+predGroupTab);
-      if(page) await renderPredGroup(predGroupTab, page);
-    }
-  } catch(e){}
-}, 500); // small delay so page renders first
+// Polymarket odds are hardcoded — no background fetch needed
 initTheme();
 // Restore last refresh label
 let _savedRefresh='';try{_savedRefresh=localStorage.getItem('wc2026lastrefresh')||'';}catch(e){}
