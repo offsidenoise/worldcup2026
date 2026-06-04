@@ -996,7 +996,7 @@ const POLY_CODES = {
   'Mexico':'mex','South Africa':'rsa','South Korea':'kr','Czechia':'cze',
   'Canada':'can','Bosnia':'bih','Qatar':'qat','Switzerland':'sui',
   'Brazil':'bra','Morocco':'mar','Haiti':'hai','Scotland':'sco',
-  'USA':'us','Paraguay':'par','Australia':'aus','Ürkiye':'tur',
+  'USA':'us','Paraguay':'par','Australia':'aus','Türkiye':'tur',
   'Germany':'ger','Curaçao':'cuw',"Côte d'Ivoire":'civ','Ecuador':'ecu',
   'Netherlands':'ned','Japan':'jpn','Sweden':'swe','Tunisia':'tun',
   'Belgium':'bel','Egypt':'egy','IR Iran':'irn','New Zealand':'nzl',
@@ -1017,19 +1017,28 @@ async function fetchPolyOdds(slug){
   const PROXY='https://corsproxy.io/?url=';
   const url='https://gamma-api.polymarket.com/markets?eventSlug='+slug+'&active=true&limit=20';
   // Fetch with 4-second timeout so render doesn't hang
+  const headers={'Accept':'application/json','Cache-Control':'no-cache'};
   async function tf(u){
     try{
       const ctrl=new AbortController();
-      const timer=setTimeout(()=>ctrl.abort(),4000);
-      const r=await fetch(u,{signal:ctrl.signal});
+      const timer=setTimeout(()=>ctrl.abort(),5000);
+      const r=await fetch(u,{signal:ctrl.signal,headers});
       clearTimeout(timer);
-      if(r.ok)return r.json();
+      if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length)return d;}
     }catch(e){}
     return null;
   }
-  const mkts=await tf(url)||await tf(PROXY+encodeURIComponent(url));
+  // Add cache-buster to bypass CDN caching
+  const bust='&_='+Math.floor(Date.now()/300000); // changes every 5 min
+  const mkts=await tf(url+bust)||await tf(PROXY+encodeURIComponent(url+bust));
   if(!mkts||!mkts.length)return null;
-  for(const m of mkts){
+  // Filter to markets that belong to our event slug
+  const filtered=mkts.filter(m=>{
+    const evts=m.events||[];
+    return evts.some(ev=>ev.slug===slug);
+  });
+  const mktsToUse=filtered.length?filtered:mkts; // fallback to all if filter fails
+  for(const m of mktsToUse){
     const oc=m.outcomes||[];let pr=m.outcomePrices;
     if(typeof pr==='string'){try{pr=JSON.parse(pr);}catch(e){continue;}}
     if(!pr||!oc.length)continue;
