@@ -643,7 +643,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
 <header>
   <div class="header-inner">
-    <div class="logo"><img class="header-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;">World Cup <span>2026</span></div>
+    <div class="logo"><img class="header-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><span id="logo-title">World Cup</span> <span>2026</span></div>
     <div class="header-right">
       <div class="refresh-wrap">
         <button class="header-refresh-btn" id="header-refresh-btn" onclick="globalRefresh()" title="Refresh live scores">⟳</button>
@@ -991,31 +991,85 @@ const FLAGS = {
 
 // ============================================================
 // POLYMARKET ODDS — hardcoded from polymarket.com/sports/world-cup/games
-// Captured June 4, 2026. Format: [pHome, pDraw, pAway]
-// MD1 has full coverage; MD2/MD3 use model only until markets open.
+// Captured June 4, 2026. Full coverage: all 72 group matches.
+// Source: polymarket.com/sports/world-cup/games
 // ============================================================
 const POLY_ODDS = {
-  // ── MATCHDAY 1 ──────────────────────────────────────────────
+  // ── MATCHDAY 1 (Thu Jun 11 – Mon Jun 15) ────────────────────
   'Mexico_South Africa':       [70, 21, 11],
   'South Korea_Czechia':       [37, 32, 34],
   'Canada_Bosnia':             [54, 27, 21],
-  'USA_Paraguay':              [49, 28, 24],
+  'USA_Paraguay':              [50, 28, 24],
   'Qatar_Switzerland':         [ 7, 14, 80],
   'Brazil_Morocco':            [61, 25, 17],
-  'Haiti_Scotland':            [14, 20, 69],
-  'Australia_Türkiye':         [20, 27, 55],
-  'Germany_Curaçao':           [95,  5,  2],
-  'Netherlands_Japan':         [49, 26, 27],
-  "Côte d'Ivoire_Ecuador":     [26, 34, 42],
-  'Sweden_Tunisia':            [51, 29, 22],
-  'Spain_Cabo Verde':          [90,  8,  5],
-  'Belgium_Egypt':             [60, 25, 19],
-  'Saudi Arabia_Uruguay':      [14, 22, 65],
-  // ── MATCHDAY 2 & 3 — from screenshot June 24 ────────────────
+  'Haiti_Scotland':            [14, 21, 67],
+  'Australia_Türkiye':         [19, 27, 56],
+  'Germany_Curaçao':           [94,  5,  2],
+  'Netherlands_Japan':         [50, 26, 26],
+  "Côte d'Ivoire_Ecuador":     [26, 34, 41],
+  'Sweden_Tunisia':            [50, 29, 23],
+  'Spain_Cabo Verde':          [90,  7,  4],
+  'Belgium_Egypt':             [59, 24, 18],
+  'Saudi Arabia_Uruguay':      [13, 22, 66],
+  'IR Iran_New Zealand':       [51, 28, 23],
+  'France_Senegal':            [69, 20, 13],
+  'Iraq_Norway':               [ 7, 14, 81],
+  'Argentina_Algeria':         [71, 21, 10],
+  'Austria_Jordan':            [74, 17, 10],
+  'Portugal_DR Congo':         [78, 16,  8],
+  'England_Croatia':           [57, 25, 20],
+  'Ghana_Panama':              [48, 27, 26],
+  'Uzbekistan_Colombia':       [11, 21, 70],
+  // ── MATCHDAY 2 (Thu Jun 18 – Wed Jun 24) ────────────────────
+  'Czechia_South Africa':      [50, 30, 23],
+  'Switzerland_Bosnia':        [62, 24, 16],
+  'Canada_Qatar':              [74, 18,  9],
+  'Mexico_South Korea':        [53, 28, 21],
+  'USA_Australia':             [56, 25, 22],
+  'Scotland_Morocco':          [23, 30, 50],
+  'Brazil_Haiti':              [93,  7,  4],
+  'Türkiye_Paraguay':          [44, 31, 28],
+  'Netherlands_Sweden':        [60, 24, 18],
+  "Germany_Côte d'Ivoire":     [65, 21, 16],
+  'Ecuador_Curaçao':           [79, 15,  7],
+  'Tunisia_Japan':             [19, 28, 55],
+  'Spain_Saudi Arabia':        [88,  9,  4],
+  'Belgium_IR Iran':           [70, 20, 13],
+  'Uruguay_Cabo Verde':        [68, 21, 12],
+  'New Zealand_Egypt':         [19, 26, 58],
+  'France_Iraq':               [87, 11,  4],
+  'Norway_Senegal':            [47, 28, 28],
+  'Argentina_Austria':         [60, 25, 18],
+  'Jordan_Algeria':            [17, 24, 62],
+  'England_Ghana':             [74, 17, 11],
+  'Panama_Croatia':            [13, 23, 66],
+  'Portugal_Uzbekistan':       [80, 15,  9],
+  'Colombia_DR Congo':         [65, 23, 13],
+  // ── MATCHDAY 3 (Thu Jun 25 – Sat Jun 27) ────────────────────
+  'Czechia_Mexico':            [27, 28, 54],
+  'South Africa_South Korea':  [25, 28, 51],
+  'Ecuador_Germany':           [20, 25, 60],
+  "Curaçao_Côte d'Ivoire":     [10, 19, 73],
+  'Tunisia_Netherlands':       [14, 22, 68],
+  'Japan_Sweden':              [48, 30, 24],
+  'Türkiye_USA':               [36, 28, 39],
+  'Paraguay_Australia':        [45, 31, 27],
+  'Norway_France':             [22, 27, 54],
+  'Senegal_Iraq':              [69, 23, 13],
+  'Uruguay_Spain':             [19, 25, 62],
+  'Cabo Verde_Saudi Arabia':   [38, 31, 34],
+  'New Zealand_Belgium':       [ 9, 17, 77],
+  'Egypt_IR Iran':             [43, 33, 28],
+  'Panama_England':            [ 9, 16, 76],
+  'Croatia_Ghana':             [56, 28, 20],
+  'Colombia_Portugal':         [29, 28, 46],
+  'DR Congo_Uzbekistan':       [43, 30, 30],
+  'Jordan_Argentina':          [ 7, 13, 82],
+  'Algeria_Austria':           [30, 32, 42],
   'Bosnia_Qatar':              [61, 25, 17],
-  'Switzerland_Canada':        [47, 30, 27],
+  'Switzerland_Canada':        [47, 30, 29],
   'Scotland_Brazil':           [12, 20, 70],
-  // More MD2/MD3 to be added as markets open
+  'Morocco_Haiti':             [77, 15,  7],
 };
 
 function getPolyOdds(home, away) {
@@ -1030,9 +1084,9 @@ function blendedProb(home, away) {
   const model = calcProb(home, away);
   const poly = getPolyOdds(home, away);
   if(poly) {
-    // 75% Polymarket, 25% model
-    const bH = Math.round(poly.pHome * 0.75 + model[0] * 0.25);
-    const bD = Math.round(poly.pDraw * 0.75 + model[1] * 0.25);
+    // 80% Polymarket, 20% model
+    const bH = Math.round(poly.pHome * 0.80 + model[0] * 0.20);
+    const bD = Math.round(poly.pDraw * 0.80 + model[1] * 0.20);
     const bA = Math.max(1, 100 - bH - bD);
     return { probs:[Math.max(1,bH), Math.max(1,bD), bA], source:'blend' };
   }
@@ -2319,7 +2373,7 @@ function renderPredGroup(g, container){
     const hF=FLAGS[home]||'', aF=FLAGS[away]||'';
 
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}${!locked&&pSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue?tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&pSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${tTeam(home)}</div>
       <div class="pred-vs">VS</div>
@@ -2338,7 +2392,7 @@ function renderPredGroup(g, container){
 </div>`;
       html+=`<div class="pick-btns">
         <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${tTeam(home)}</button>
-        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">Draw</button>
+        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">${t('pred_draw_btn')}</button>
         <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${tTeam(away)} ${aF}</button>
       </div>`;
     }
@@ -2390,7 +2444,7 @@ function renderPredKO(roundKey, container){
     const locked=realM.winner!=null;
 
     html+=`<div class="pred-match-card${tbd?' locked':''}${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+fix.venue:''}${locked?' · 🔒 Result locked':''}${!locked&&home&&away&&typeof koSrc!=='undefined'&&koSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&home&&away&&typeof koSrc!=='undefined'&&koSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${pick==='home'?' pick-winner':''}">${hF} ${tTeam(home)||'TBD'}</div>
       <div class="pred-vs">VS</div>
@@ -2412,7 +2466,7 @@ function renderPredKO(roundKey, container){
       const bm=bracket[mn];
       if(bm&&bm.winner){
         const isAuto=bm.autoSim&&!pick;
-        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} advances${isAuto?' (auto)':''}</div>`;
+        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
       }
     } else {
       html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">Awaiting earlier round results</div>`;
@@ -4426,6 +4480,13 @@ const STRINGS = {
     tap_team_hint: {en:'Tap a team name to view their squad', es:'Toca el nombre de un equipo para ver su plantilla'},
     poly_blend:{en:'Polymarket blend',es:'Con Polymarket'},
   model_only:{en:'Model only',es:'Solo modelo'},
+  logo_title:        {en:'World Cup',  es:'Mundial'},
+    pred_actual_result: {en:'Actual result',                     es:'Resultado actual'},
+  pred_advanced:      {en:'Advanced',                            es:'Avanzó'},
+  pred_awaiting:      {en:'Awaiting earlier round results',      es:'Esperando resultados de ronda anterior'},
+  pred_draw_btn:      {en:'Draw',                                es:'Empate'},
+  pred_advances:      {en:'advances',                            es:'avanza'},
+  pred_auto:          {en:'(auto)',                              es:'(auto)'},
   // Flores/Baumgartner TBD
   flores_tbd:   {en:'Flores replacement pending',      es:'Reemplazo de Flores pendiente'},
   baumgartner_tbd:{en:'Baumgartner replacement pending',es:'Reemplazo de Baumgartner pendiente'},
@@ -4478,6 +4539,9 @@ function setLang(lang) {
 }
 
 function updateStaticLabels() {
+  // Logo title
+  const _lt = document.getElementById('logo-title');
+  if(_lt) _lt.textContent = t('logo_title');
   // Nav tabs
   const navBtns = document.querySelectorAll('.nav-btn');
   const navKeys = ['nav_overview','nav_results','nav_predictions','nav_statistics'];
@@ -4871,6 +4935,7 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 loadState();
 initState();
+initLang();
 // Polymarket odds are hardcoded — no background fetch needed
 initTheme();
 // Restore last refresh label
