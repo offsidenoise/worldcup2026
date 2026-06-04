@@ -1030,8 +1030,9 @@ function blendedProb(home, away) {
   const model = calcProb(home, away);
   const poly = getPolyOdds(home, away);
   if(poly) {
-    const bH = Math.round((model[0] + poly.pHome) / 2);
-    const bD = Math.round((model[1] + poly.pDraw) / 2);
+    // 75% Polymarket, 25% model
+    const bH = Math.round(poly.pHome * 0.75 + model[0] * 0.25);
+    const bD = Math.round(poly.pDraw * 0.75 + model[1] * 0.25);
     const bA = Math.max(1, 100 - bH - bD);
     return { probs:[Math.max(1,bH), Math.max(1,bD), bA], source:'blend' };
   }
