@@ -2443,14 +2443,16 @@ function setPredKO(mn, val){
 }
 
 function autoPredictAll(){
-  // Group stage — iterate actual match objects so home/away are always correct
+  // Group stage — use blended probs, pick draw when match is close
   GROUP_KEYS.forEach(g=>{
     state.groupMatches[g].forEach((match, mi)=>{
-      if(match.homeScore!==null) return; // locked by real result
-      const p=calcProb(match.home, match.away);
-      if(p[0]>p[1]&&p[0]>p[2]) state.predictions.group[`${g}_${mi}`]='home';
-      else if(p[2]>p[0]&&p[2]>p[1]) state.predictions.group[`${g}_${mi}`]='away';
-      else state.predictions.group[`${g}_${mi}`]='draw';
+      if(match.homeScore!==null) return;
+      const {probs:p}=blendedProb(match.home, match.away);
+      const maxWin=Math.max(p[0],p[2]);
+      // Pick draw if draw% is within 8pts of the leading side, or teams are evenly matched
+      if(p[1]>=28 && maxWin-p[1]<=8) state.predictions.group[`${g}_${mi}`]='draw';
+      else if(p[0]>=p[2]) state.predictions.group[`${g}_${mi}`]='home';
+      else state.predictions.group[`${g}_${mi}`]='away';
     });
   });
   // KO rounds sequentially
