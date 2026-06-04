@@ -4806,12 +4806,21 @@ async function globalRefresh(){
       }catch(e){}
     }
     if(completed.length>0){
+      // Fetch stats for ALL completed matches — runs in background, won't block UI
+      const recentEvents=completed;
+      // Reset stats then fetch all summaries in parallel batches of 10
       statsData.players.forEach(p=>{p.goals=0;p.yellows=0;p.reds=0;p.games=p.games||0;});
       const newPlayers={};
-      for(const event of completed){
-        try{
-          const r=await espnFetch(BASE+'/summary?event='+event.id); if(!r.ok) continue;
-          const sumJson=await r.json();
+      const BATCH=10;
+      for(let i=0;i<recentEvents.length;i+=BATCH){
+        const batch=recentEvents.slice(i,i+BATCH);
+        const summaries=await Promise.allSettled(
+          batch.map(e=>espnFetch(BASE+'/summary?event='+e.id).then(r=>r.ok?r.json():null).catch(()=>null))
+        );
+        for(const result of summaries){
+          const sumJson=result.status==='fulfilled'?result.value:null;
+          if(!sumJson) continue;
+          try{
           const boxTeams=sumJson.boxscore?.players||[];
           boxTeams.forEach(teamData=>{
             const country=normalizeESPNTeam(teamData.team?.displayName||teamData.team?.name||'');
@@ -4837,9 +4846,10 @@ async function globalRefresh(){
               if(playerName&&teamName) addStatToPlayer(playerName,teamName,1,0,0,newPlayers);
             });
           });
-        }catch(e){}
+          }catch(e){}
+        }
       }
-      Object.values(newPlayers).forEach(p=>{if(!statsData.players.find(sp=>sp.name===p.name&&sp.country===p.country))statsData.players.push(p);});
+       Object.values(newPlayers).forEach(p=>{if(!statsData.players.find(sp=>sp.name===p.name&&sp.country===p.country))statsData.players.push(p);});
     }
     if(resultsUpdated>0){
       saveState(); renderAll();
@@ -4936,6 +4946,10 @@ window.addEventListener('unhandledrejection', function(e) {
 loadState();
 initState();
 initLang();
+// Auto-refresh on page load
+setTimeout(function(){ globalRefresh(); }, 2000);
+// Auto-refresh every 24 hours while app is open
+setInterval(function(){ globalRefresh(); }, 24*60*60*1000);
 // Polymarket odds are hardcoded — no background fetch needed
 initTheme();
 // Restore last refresh label
