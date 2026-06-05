@@ -2580,8 +2580,9 @@ function setPredGroup(g, mi, val){
         // raw[0]=home goals, raw[1]=away goals — flip so away wins
         sc = raw[1]>=raw[0] ? raw : [raw[1],raw[0]]; // ensure away wins
       } else {
-        // Draw — just use predictScore as-is
-        sc=predictScore(match.home,match.away);
+        // Draw — store appropriate draw scoreline based on draw probability
+        const dp=blendedProb(match.home,match.away).probs[1];
+        sc = dp>=32 ? [1,1] : [0,0];
       }
       state.predictions.scores[key]=sc;
     }
@@ -2613,10 +2614,24 @@ function autoPredictAll(){
       if(match.homeScore!==null) return;
       const {probs:p}=blendedProb(match.home, match.away);
       const maxWin=Math.max(p[0],p[2]);
-      // Pick draw if draw% is within 8pts of the leading side, or teams are evenly matched
-      if(p[1]>=28 && maxWin-p[1]<=8) state.predictions.group[`${g}_${mi}`]='draw';
-      else if(p[0]>=p[2]) state.predictions.group[`${g}_${mi}`]='home';
-      else state.predictions.group[`${g}_${mi}`]='away';
+      // Pick draw if draw% is within 12pts of the leading side
+      let pick;
+      if(p[1]>=28 && maxWin-p[1]<=12) pick='draw';
+      else if(p[0]>=p[2]) pick='home';
+      else pick='away';
+      state.predictions.group[`${g}_${mi}`]=pick;
+      // Store predicted score for standings calculation
+      if(!state.predictions.scores) state.predictions.scores={};
+      const key=`${g}_${mi}`;
+      if(pick==='home'){
+        const raw=predictScore(match.home,match.away);
+        state.predictions.scores[key]=raw[0]>=raw[1]?raw:[raw[1],raw[0]];
+      } else if(pick==='away'){
+        const raw=predictScore(match.home,match.away);
+        state.predictions.scores[key]=raw[1]>=raw[0]?raw:[raw[1],raw[0]];
+      } else {
+        state.predictions.scores[key]=p[1]>=32?[1,1]:[0,0];
+      }
     });
   });
   // KO bracket is driven purely by buildPredBracket auto-sim
