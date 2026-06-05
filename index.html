@@ -1603,6 +1603,25 @@ function allMatchesPlayed(group) {
   return state.groupMatches[group].every(m=>m.homeScore!==null);
 }
 
+// FIFA Annex C — 3rd place slot assignment (274 of 495 scenarios from Wikipedia)
+// Key: 8 sorted group letters. Slots order: M79,M85,M81,M74,M82,M77,M87,M80
+const ANNEX_C={"ACDEGHIJ":"H,G,J,C,A,D,E,I","ACDEGHIK":"H,G,E,C,A,D,I,K","ACDEGHIL":"H,G,E,C,A,D,L,I","ACDEGHJK":"H,G,J,C,A,D,E,K","ACDEGHJL":"H,G,J,C,A,D,L,E","ACDEGHKL":"H,G,E,C,A,D,L,K","ACDEGIJK":"E,G,J,C,A,D,I,K","ACDEGIJL":"E,G,J,C,A,D,L,I","ACDEGIKL":"E,G,I,C,A,D,L,K","ACDEGJKL":"E,G,J,C,A,D,L,K","ACDEHIJK":"H,J,E,C,A,D,I,K","ACDEHIJL":"H,J,E,C,A,D,L,I","ACDEHIKL":"H,E,I,C,A,D,L,K","ACDEIJKL":"E,J,I,C,A,D,L,K","ACDFGHIJ":"H,G,J,C,A,F,D,I","ACDFGHIK":"H,G,F,C,A,D,I,K","ACDFGHIL":"H,G,F,C,A,D,L,I","ACDFGHJK":"H,G,J,C,A,F,D,K","ACDFGHJL":"C,G,J,D,A,F,L,H","ACDFGHKL":"H,G,F,C,A,D,L,K","ACDFGIJK":"C,G,J,D,A,F,I,K","ACDFGIJL":"C,G,J,D,A,F,L,I","ACDFGIKL":"C,G,I,D,A,F,L,K","ACDFGJKL":"C,G,J,D,A,F,L,K","ACDFHIJK":"H,J,F,C,A,D,I,K","ACDFHIJL":"H,J,F,C,A,D,L,I","ACDFHIKL":"H,F,I,C,A,D,L,K","ACDFIJKL":"C,J,I,D,A,F,L,K","ACDGHIJK":"H,G,J,C,A,D,I,K","ACDGHIJL":"H,G,J,C,A,D,L,I","ACDGHIKL":"H,G,I,C,A,D,L,K","ACDGHJKL":"H,G,J,C,A,D,L,K","ACDGIJKL":"I,G,J,C,A,D,L,K","ACDHIJKL":"H,J,I,C,A,D,L,K","ACEFGHIJ":"H,G,J,C,A,F,E,I","ACEFGHIK":"H,G,E,C,A,F,I,K","ACEFGHIL":"H,G,E,C,A,F,L,I","ACEFGHJK":"H,G,J,C,A,F,E,K","ACEFGHJL":"H,G,J,C,A,F,L,E","ACEFGHKL":"H,G,E,C,A,F,L,K","ACEFGIJK":"E,G,J,C,A,F,I,K","ACEFGIJL":"E,G,J,C,A,F,L,I","ACEFGIKL":"E,G,I,C,A,F,L,K","ACEFGJKL":"E,G,J,C,A,F,L,K","ACEFHIJK":"H,J,E,C,A,F,I,K","ACEFHIJL":"H,J,E,C,A,F,L,I","ACEFHIKL":"H,E,I,C,A,F,L,K","ACEFIJKL":"E,J,I,C,A,F,L,K","ACEGHIJK":"E,G,J,C,A,H,I,K","ACEGHIJL":"E,G,J,C,A,H,L,I","ACEGHIKL":"E,G,I,C,A,H,L,K","ACEGIJKL":"E,J,I,C,A,G,L,K","ACEHIJKL":"E,J,I,C,A,H,L,K","ACFGHIJK":"H,G,J,C,A,F,I,K","ACFGHIJL":"H,G,J,C,A,F,L,I","ACFGHIKL":"H,G,I,C,A,F,L,K","ACFGHJKL":"H,G,J,C,A,F,L,K","ACFGIJKL":"I,G,J,C,A,F,L,K","ACFHIJKL":"H,J,I,C,A,F,L,K","ACGHIJKL":"H,J,I,C,A,G,L,K","ADEFGHIJ":"H,G,J,D,A,F,E,I","ADEFGHIK":"H,G,E,D,A,F,I,K","ADEFGHIL":"H,G,E,D,A,F,L,I","ADEFGHJK":"H,G,J,D,A,F,E,K","ADEFGHJL":"H,G,J,D,A,F,L,E","ADEFGHKL":"H,G,E,D,A,F,L,K","ADEFGIJK":"E,G,J,D,A,F,I,K","ADEFGIJL":"E,G,J,D,A,F,L,I","ADEFGIKL":"E,G,I,D,A,F,L,K","ADEFGJKL":"E,G,J,D,A,F,L,K","ADEFHIJK":"H,J,E,D,A,F,I,K","ADEFHIJL":"H,J,E,D,A,F,L,I","ADEFHIKL":"H,E,I,D,A,F,L,K","ADEFIJKL":"E,J,I,D,A,F,L,K","ADEGHIJK":"E,G,J,D,A,H,I,K","ADEGHIJL":"E,G,J,D,A,H,L,I","ADEGHIKL":"E,G,I,D,A,H,L,K","ADEGIJKL":"E,J,I,D,A,G,L,K","ADEHIJKL":"E,J,I,D,A,H,L,K","ADFGHIJK":"H,G,J,D,A,F,I,K","ADFGHIJL":"H,G,J,D,A,F,L,I","ADFGHIKL":"H,G,I,D,A,F,L,K","ADFGHJKL":"H,G,J,D,A,F,L,K","ADFGIJKL":"I,G,J,D,A,F,L,K","ADFHIJKL":"H,J,I,D,A,F,L,K","ADGHIJKL":"H,J,I,D,A,G,L,K","AEFGHIJK":"E,G,J,F,A,H,I,K","AEFGHIJL":"E,G,J,F,A,H,L,I","AEFGHIKL":"E,G,I,F,A,H,L,K","AEFGHJKL":"E,G,J,F,A,H,L,K","AEFGIJKL":"E,J,I,F,A,G,L,K","AEFHIJKL":"E,J,I,F,A,H,L,K","AEGHIJKL":"E,J,I,A,H,G,L,K","AFGHIJKL":"H,J,I,F,A,G,L,K","BCDEFGHI":"C,G,B,D,H,F,E,I","BCDEFGHJ":"H,G,B,C,J,F,D,E","BCDEFGHK":"C,G,B,D,H,F,E,K","BCDEFGHL":"C,G,B,D,H,F,L,E","BCDEFGIJ":"C,G,B,D,J,F,E,I","BCDEFGIK":"C,G,B,D,E,F,I,K","BCDEFGIL":"C,G,B,D,E,F,L,I","BCDEFGJK":"C,G,B,D,J,F,E,K","BCDEFGJL":"C,G,B,D,J,F,L,E","BCDEFGKL":"C,G,B,D,E,F,L,K","BCDEFHIJ":"C,J,B,D,H,F,E,I","BCDEFHIK":"C,E,B,D,H,F,I,K","BCDEFHIL":"C,E,B,D,H,F,L,I","BCDEFHJK":"C,J,B,D,H,F,E,K","BCDEFHJL":"C,J,B,D,H,F,L,E","BCDEFHKL":"C,E,B,D,H,F,L,K","BCDEFIJK":"C,J,B,D,E,F,I,K","BCDEFIJL":"C,J,B,D,E,F,L,I","BCDEFIKL":"C,E,B,D,I,F,L,K","BCDEFJKL":"C,J,B,D,E,F,L,K","BCDEGHIJ":"H,G,B,C,J,D,E,I","BCDEGHIK":"E,G,B,C,H,D,I,K","BCDEGHIL":"E,G,B,C,H,D,L,I","BCDEGHJK":"H,G,B,C,J,D,E,K","BCDEGHJL":"H,G,B,C,J,D,L,E","BCDEGHKL":"E,G,B,C,H,D,L,K","BCDEGIJK":"E,G,B,C,J,D,I,K","BCDEGIJL":"E,G,B,C,J,D,L,I","BCDEGIKL":"E,G,B,C,I,D,L,K","BCDEGJKL":"E,G,B,C,J,D,L,K","BCDEHIJK":"E,J,B,C,H,D,I,K","BCDEHIJL":"E,J,B,C,H,D,L,I","BCDEHIKL":"E,I,B,C,H,D,L,K","BCDEIJKL":"E,J,B,C,I,D,L,K","BCDFGHIJ":"H,G,B,C,J,F,D,I","BCDFGHIK":"C,G,B,D,H,F,I,K","BCDFGHIL":"C,G,B,D,H,F,L,I","BCDFGHJK":"H,G,B,C,J,F,D,K","BCDFGHJL":"C,G,B,D,H,F,L,J","BCDFGHKL":"C,G,B,D,H,F,L,K","BCDFGIJK":"C,G,B,D,J,F,I,K","BCDFGIJL":"C,G,B,D,J,F,L,I","BCDFGIKL":"C,G,B,D,I,F,L,K","BCDFGJKL":"C,G,B,D,J,F,L,K","BCDFHIJK":"C,J,B,D,H,F,I,K","BCDFHIJL":"C,J,B,D,H,F,L,I","BCDFHIKL":"C,I,B,D,H,F,L,K","BCDFHJKL":"C,J,B,D,H,F,L,K","BCDFIJKL":"C,J,B,D,I,F,L,K","BCEFGHIJ":"H,G,B,C,J,F,E,I","BCEFGHIK":"E,G,B,C,H,F,I,K","BCEFGHIL":"E,G,B,C,H,F,L,I","BCEFGHJK":"H,G,B,C,J,F,E,K","BCEFGHJL":"H,G,B,C,J,F,L,E","BCEFGHKL":"E,G,B,C,H,F,L,K","BCEFGIJK":"E,G,B,C,J,F,I,K","BCEFGIJL":"E,G,B,C,J,F,L,I","BCEFGIKL":"E,G,B,C,I,F,L,K","BCEFGJKL":"E,G,B,C,J,F,L,K","BCEFHIJK":"E,J,B,C,H,F,I,K","BCEFHIJL":"E,J,B,C,H,F,L,I","BCEFHIKL":"E,I,B,C,H,F,L,K","BCEFHJKL":"E,J,B,C,H,F,L,K","BCEFIJKL":"E,J,B,C,I,F,L,K","BCEGHIJK":"E,J,B,C,H,G,I,K","BCEGHIJL":"E,J,B,C,H,G,L,I","BCEGHIKL":"E,G,B,C,I,H,L,K","BCEGIJKL":"E,J,B,C,I,G,L,K","BCEHIJKL":"E,J,B,C,I,H,L,K","BCFGHIJK":"H,G,B,C,J,F,I,K","BCFGHIJL":"H,G,B,C,J,F,L,I","BCFGHIKL":"H,G,B,C,I,F,L,K","BCFGHJKL":"H,G,B,C,J,F,L,K","BCFGIJKL":"I,G,B,C,J,F,L,K","BCFHIJKL":"H,J,B,C,I,F,L,K","BCGHIJKL":"H,J,B,C,I,G,L,K","BDEFGHIJ":"H,G,B,D,J,F,E,I","BDEFGHIK":"E,G,B,D,H,F,I,K","BDEFGHIL":"E,G,B,D,H,F,L,I","BDEFGHJK":"H,G,B,D,J,F,E,K","BDEFGHJL":"H,G,B,D,J,F,L,E","BDEFGHKL":"E,G,B,D,H,F,L,K","BDEFGIJK":"E,G,B,D,J,F,I,K","BDEFGIJL":"E,G,B,D,J,F,L,I","BDEFGIKL":"E,G,B,D,I,F,L,K","BDEFGJKL":"E,G,B,D,J,F,L,K","BDEFHIJK":"E,J,B,D,H,F,I,K","BDEFHIJL":"E,J,B,D,H,F,L,I","BDEFHIKL":"E,I,B,D,H,F,L,K","BDEFHJKL":"E,J,B,D,H,F,L,K","BDEFIJKL":"E,J,B,D,I,F,L,K","BDEGHIJK":"E,J,B,D,H,G,I,K","BDEGHIJL":"E,J,B,D,H,G,L,I","BDEGHIKL":"E,G,B,D,I,H,L,K","BDEGHJKL":"E,J,B,D,H,G,L,K","BDEGIJKL":"E,J,B,D,I,G,L,K","BDEHIJKL":"E,J,B,D,I,H,L,K","BDFGHIJK":"H,G,B,D,J,F,I,K","BDFGHIJL":"H,G,B,D,J,F,L,I","BDFGHIKL":"H,G,B,D,I,F,L,K","BDFGHJKL":"H,G,B,D,J,F,L,K","BDFGIJKL":"I,G,B,D,J,F,L,K","BDFHIJKL":"H,J,B,D,I,F,L,K","BDGHIJKL":"H,J,B,D,I,G,L,K","BEFGHIJK":"E,J,B,F,H,G,I,K","BEFGHIJL":"E,J,B,F,H,G,L,I","BEFGHIKL":"E,G,B,F,I,H,L,K","BEFGHJKL":"E,J,B,F,H,G,L,K","BEFGIJKL":"E,J,B,F,I,G,L,K","BEFHIJKL":"E,J,B,F,I,H,L,K","BEGHIJKL":"E,J,I,B,H,G,L,K","BFGHIJKL":"H,J,B,F,I,G,L,K","CDEFGHIJ":"C,G,J,D,H,F,E,I","CDEFGHIK":"C,G,E,D,H,F,I,K","CDEFGHIL":"C,G,E,D,H,F,L,I","CDEFGHJK":"C,G,J,D,H,F,E,K","CDEFGHJL":"C,G,J,D,H,F,L,E","CDEFGHKL":"C,G,E,D,H,F,L,K","CDEFGIJK":"C,G,E,D,J,F,I,K","CDEFGIJL":"C,G,E,D,J,F,L,I","CDEFGIKL":"C,G,E,D,I,F,L,K","CDEFGJKL":"C,G,E,D,J,F,L,K","CDEFHIJK":"C,J,E,D,H,F,I,K","CDEFHIJL":"C,J,E,D,H,F,L,I","CDEFHIKL":"C,E,I,D,H,F,L,K","CDEFHJKL":"C,J,E,D,H,F,L,K","CDEFIJKL":"C,J,E,D,I,F,L,K","CDEGHIJK":"E,G,J,C,H,D,I,K","CDEGHIJL":"E,G,J,C,H,D,L,I","CDEGHIKL":"E,G,I,C,H,D,L,K","CDEGHJKL":"E,G,J,C,H,D,L,K","CDEGIJKL":"E,G,I,C,J,D,L,K","CDEHIJKL":"E,J,I,C,H,D,L,K","CDFGHIJK":"C,G,J,D,H,F,I,K","CDFGHIJL":"C,G,J,D,H,F,L,I","CDFGHIKL":"C,G,I,D,H,F,L,K","CDFGHJKL":"C,G,J,D,H,F,L,K","CDFGIJKL":"C,G,I,D,J,F,L,K","CDFHIJKL":"C,J,I,D,H,F,L,K","CEFGHIJK":"E,G,J,C,H,F,I,K","CEFGHIJL":"E,G,J,C,H,F,L,I","CEFGHIKL":"E,G,I,C,H,F,L,K","CEFGHJKL":"E,G,J,C,H,F,L,K","CEFGIJKL":"E,G,I,C,J,F,L,K","CEFHIJKL":"E,J,I,C,H,F,L,K","CEGHIJKL":"E,J,I,C,H,G,L,K","CFGHIJKL":"H,G,I,C,J,F,L,K","DEFGHIJK":"E,G,J,D,H,F,I,K","DEFGHIJL":"E,G,J,D,H,F,L,I","DEFGHIKL":"E,G,I,D,H,F,L,K","DEFGHJKL":"E,G,J,D,H,F,L,K","DEFGIJKL":"E,G,I,D,J,F,L,K","DEFHIJKL":"E,J,I,D,H,F,L,K","DEGHIJKL":"E,J,I,D,H,G,L,K","DFGHIJKL":"H,G,I,D,J,F,L,K","EFGHIJKL":"E,J,I,F,H,G,L,K"};
+const ANNEX_C_SLOTS=[79,85,81,74,82,77,87,80];
+const ANNEX_C_ALLOWED={79:["C","E","F","H","I"],85:["E","F","G","I","J"],81:["B","E","F","I","J"],74:["A","B","C","D","F"],82:["A","E","H","I","J"],77:["C","D","F","G","H"],87:["D","E","I","J","L"],80:["E","H","I","J","K"]};
+const ANNEX_C_WINNER={79:"A",85:"B",81:"D",74:"E",82:"G",77:"I",87:"K",80:"L"};
+function getThirdPlaceSlots(qs){
+  const key=qs.slice().sort().join('');
+  if(ANNEX_C[key]){const v=ANNEX_C[key].split(','),r={};ANNEX_C_SLOTS.forEach((m,i)=>r[m]=v[i]);return r;}
+  return greedyThirdPlaceAssign(qs);
+}
+function greedyThirdPlaceAssign(groups){
+  const rem=new Set(groups),r={};
+  const slots=ANNEX_C_SLOTS.slice().sort((a,b)=>
+    ANNEX_C_ALLOWED[a].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[a]).length-
+    ANNEX_C_ALLOWED[b].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[b]).length);
+  for(const mn of slots){const o=ANNEX_C_ALLOWED[mn].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[mn]);if(o.length){r[mn]=o[0];rem.delete(o[0]);}}
+  return r;
+}
 // Returns the 8 best third-place teams from actual results
 // Criteria: pts → GD → GF → conduct score (lower better) → FIFA rank
 function getBestThirds() {
@@ -1735,7 +1754,9 @@ function getKOMatchTeams(matchNum) {
       const grpOptions=thirdLabels[String(matchNum)]||'?';
       if(!allGroupsDone) return {name:`3rd (${grpOptions})`, preliminary:true, slot:`3rd (${grpOptions})`};
         const thirds=getBestThirds();
-        const t=thirds[b3idx];
+        const slotMap=getThirdPlaceSlots(thirds.map(t=>t.grp));
+        const grp=slotMap[matchNum];
+        const t=thirds.find(x=>x.grp===grp);
         if(!t) return {name:'3rd', preliminary:true, slot:'3rd'};
         return {name:t.name, preliminary:false, slot:`3rd (${t.grp})`};
       }
@@ -1904,22 +1925,22 @@ function buildPredBracket() {
     I1:st.I[0]?.n, I2:st.I[1]?.n, J1:st.J[0]?.n, J2:st.J[1]?.n,
     K1:st.K[0]?.n, K2:st.K[1]?.n, L1:st.L[0]?.n, L2:st.L[1]?.n,
   };
-  b3.forEach((t,i)=>slots[`3rd_${i}`]=t?.n);
+  // Annex C: assign 3rd place teams to correct R32 slots
+  const b3groups=b3.map(t=>t.grp);
+  const thirdSlotMap=getThirdPlaceSlots(b3groups);
+  const thirdTeams={};
+  ANNEX_C_SLOTS.forEach(mn=>{const g=thirdSlotMap[mn];if(g){const t=b3.find(x=>x.grp===g);thirdTeams[mn]=t?.n||null;}});
 
-  // resolve R32 home/away from seeds
-  const resolveSlot=(s,b3idx)=>{
+  const resolveSlot=(s,matchNum)=>{
     if(slots[s]) return slots[s];
-    if(s==='3rd') return slots[`3rd_${b3idx}`]||null;
+    if(s==='3rd') return thirdTeams[matchNum]||null;
     return null;
   };
 
-  // Build bracket: matchNum → {home, away, winner, autoSim}
   const bracket={};
-  let b3used=0;
   R32_SEEDS.forEach(seed=>{
-    let home, away;
-    if(seed.home==='3rd') { home=slots[`3rd_${b3used++}`]||null; } else { home=resolveSlot(seed.home,0); }
-    if(seed.away==='3rd') { away=slots[`3rd_${b3used++}`]||null; } else { away=resolveSlot(seed.away,0); }
+    const home=resolveSlot(seed.home,seed.matchNum);
+    const away=resolveSlot(seed.away,seed.matchNum);
     const pick=state.predictions.knockout[seed.matchNum];
     const realWinner=state.knockout[seed.matchNum]?.winner||null;
     let winner, autoSim=false;
