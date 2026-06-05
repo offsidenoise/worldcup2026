@@ -925,7 +925,7 @@ const SQUAD_AGE = {
   'Jordan':28.94,'IR Iran':29.00,'Panama':29.52,'Colombia':29.98,
 };
 
-// ── RANKING SCORES (ESPN+FIFA+Elo composite, already scaled 0–70) ───────────
+// ── RANKING SCORES (ESPN 40% + FIFA 20% + Elo 20%, scaled 0–80, floored at 0) ─
 // Source: ESPN Power Rankings (Ryan O'Hanlon, June 2 2026)
 // H+I+J from Excel, negative sums floored at 0
 const RANK_SCORE = {
@@ -962,9 +962,6 @@ const WC_HISTORY = {
   'Curaçao':0,'Cabo Verde':0,'Haiti':0,'Jordan':0,
   'DR Congo':0,'Uzbekistan':0,'Iraq':0,
 };
-
-// Home field advantage: USA, Mexico, Canada = 10
-const HOME_BONUS = {'USA':10,'Mexico':10,'Canada':10};
 
 // Age band score scaled to 5% max: 25-28=5%, 28-30=3.5%, 20-25=3%, 30+=2%
 function ageScore(team) {
@@ -1653,29 +1650,36 @@ function getBestThirds() {
 // PROBABILITY — 4-factor composite (FIFA 60%, WC history 20%, home 10%, age 10%)
 // ============================================================
 function rankStrength(team) {
-  // ESPN+FIFA+Elo composite, already on 0-70 scale
+  // ESPN 40% + FIFA 20% + Elo 20%, scaled 0-80, floored at 0
   return RANK_SCORE[team] !== undefined ? RANK_SCORE[team] : 0;
 }
 function wcStrength(team) {
-  // Already scaled to 0-15 range
+  // WC history scaled 0-15
   return WC_HISTORY[team] !== undefined ? WC_HISTORY[team] : 0;
 }
 function compositeStrength(team) {
-  // rankStrength (0-70) + wcStrength (0-15) + homeBonus (0-10) + ageScore (0-5) = 0-100
-  return rankStrength(team) + wcStrength(team) + (HOME_BONUS[team]||0) + ageScore(team);
+  // RANK_SCORE (0-80, ESPN 40%+FIFA 20%+Elo 20%) + WC_HISTORY (0-15) + ageScore (0-5) = 0-100
+  // HOME_BONUS removed: FIFA rankings already reflect hosting advantage
+  return rankStrength(team) + wcStrength(team) + ageScore(team);
 }
 function calcProb(teamA, teamB) {
-  const diff = compositeStrength(teamA) - compositeStrength(teamB);
-  const wA = Math.round(100 / (1 + Math.pow(10, -diff / 25)));
-  const draw = Math.min(35, Math.max(20, 30 - Math.abs(diff) * 0.15));
+  const csA = compositeStrength(teamA);
+  const csB = compositeStrength(teamB);
+  const total = csA + csB;
+  // Win probability: simple ratio A/(A+B)
+  const wA = total > 0 ? Math.round(csA / total * 100) : 50;
+  const draw = Math.min(35, Math.max(20, 30 - Math.abs(csA - csB) * 0.15));
   const rem = 100 - draw;
   const pA = Math.max(3, Math.round(wA * rem / 100));
   const pB = Math.max(3, rem - pA);
   return [pA, draw, pB];
 }
 function calcProbKO(teamA, teamB) {
-  const diff = compositeStrength(teamA) - compositeStrength(teamB);
-  const pA = Math.round(100 / (1 + Math.pow(10, -diff / 25)));
+  const csA = compositeStrength(teamA);
+  const csB = compositeStrength(teamB);
+  const total = csA + csB;
+  // Win probability: simple ratio A/(A+B), no draw in KO
+  const pA = total > 0 ? Math.round(csA / total * 100) : 50;
   return [Math.max(3, pA), Math.max(3, 100 - pA)];
 }
 
@@ -2544,7 +2548,11 @@ function renderPredKO(roundKey, container){
       </div>`;
       if(bm&&bm.winner){
         const isAuto=bm.autoSim&&!pick;
-        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic;':''}">${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
+        const winnerCS=compositeStrength(bm.winner);
+        const loserCS=compositeStrength(bm.winner===home?away:home);
+        const winPct=Math.round(winnerCS/(winnerCS+loserCS)*100);
+        const conf=winPct<=60?'Toss-up — ':winPct<=75?`Leaning ${tTeam(bm.winner)} — `:`Likely ${tTeam(bm.winner)} — `;
+        html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic':''}">${conf}${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
       }
     } else {
       html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">Awaiting earlier round results</div>`;
