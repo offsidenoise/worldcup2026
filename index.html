@@ -4413,20 +4413,39 @@ function namesMatch(a, b) {
 }
 function normalizeESPNTeam(name) {
   const MAP = {
-    'mexico':'Mexico','south africa':'South Africa','south korea':'South Korea','korea republic':'South Korea',
-    'czechia':'Czechia','czech republic':'Czechia','canada':'Canada','bosnia':'Bosnia','bosnia & herzegovina':'Bosnia',
-    'qatar':'Qatar','switzerland':'Switzerland','brazil':'Brazil','morocco':'Morocco','haiti':'Haiti','scotland':'Scotland',
-    'united states':'USA','usa':'USA','paraguay':'Paraguay','australia':'Australia','turkey':'Türkiye','türkiye':'Türkiye',
-    'germany':'Germany','curacao':'Curaçao','curaçao':'Curaçao',"ivory coast":"Côte d'Ivoire","côte d'ivoire":"Côte d'Ivoire",
+    'mexico':'Mexico','méxico':'Mexico',
+    'south africa':'South Africa',
+    'south korea':'South Korea','korea republic':'South Korea','republic of korea':'South Korea',
+    'czechia':'Czechia','czech republic':'Czechia',
+    'canada':'Canada',
+    'bosnia':'Bosnia','bosnia & herzegovina':'Bosnia','bosnia and herzegovina':'Bosnia',
+    'qatar':'Qatar','switzerland':'Switzerland','brazil':'Brazil','morocco':'Morocco',
+    'haiti':'Haiti','scotland':'Scotland',
+    'united states':'USA','usa':'USA','us':'USA',
+    'paraguay':'Paraguay','australia':'Australia',
+    'turkey':'Türkiye','türkiye':'Türkiye',
+    'germany':'Germany',
+    'curacao':'Curaçao','curaçao':'Curaçao',
+    "ivory coast":"Côte d'Ivoire","côte d'ivoire":"Côte d'Ivoire","cote d'ivoire":"Côte d'Ivoire",
     'ecuador':'Ecuador','netherlands':'Netherlands','japan':'Japan','sweden':'Sweden','tunisia':'Tunisia',
-    'belgium':'Belgium','egypt':'Egypt','iran':'IR Iran','ir iran':'IR Iran','new zealand':'New Zealand',
-    'spain':'Spain','cape verde':'Cabo Verde','cabo verde':'Cabo Verde','saudi arabia':'Saudi Arabia',
+    'belgium':'Belgium','egypt':'Egypt',
+    'iran':'IR Iran','ir iran':'IR Iran','islamic republic of iran':'IR Iran',
+    'new zealand':'New Zealand',
+    'spain':'Spain',
+    'cape verde':'Cabo Verde','cabo verde':'Cabo Verde',
+    'saudi arabia':'Saudi Arabia',
     'uruguay':'Uruguay','france':'France','senegal':'Senegal','iraq':'Iraq','norway':'Norway',
     'argentina':'Argentina','algeria':'Algeria','austria':'Austria','jordan':'Jordan',
-    'portugal':'Portugal','dr congo':'DR Congo','congo dr':'DR Congo','democratic republic of congo':'DR Congo',
-    'uzbekistan':'Uzbekistan','colombia':'Colombia','england':'England','croatia':'Croatia','ghana':'Ghana','panama':'Panama',
+    'portugal':'Portugal',
+    'dr congo':'DR Congo','congo dr':'DR Congo','democratic republic of congo':'DR Congo',
+    'congo, the democratic republic of the':'DR Congo',
+    'uzbekistan':'Uzbekistan','colombia':'Colombia','england':'England','croatia':'Croatia',
+    'ghana':'Ghana','panama':'Panama',
   };
-  return MAP[name.toLowerCase()] || name;
+  // Normalize accents then look up
+  const key = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const keyAccent = name.toLowerCase().trim();
+  return MAP[keyAccent] || MAP[key] || name;
 }
 
 
