@@ -976,11 +976,11 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <div class="section-title">Predictions</div>
     <div class="section-sub">Pick winners for every match. Locked 🔒 where real scores are already entered.</div>
     <div class="autopick-row">
-      <button class="btn-auto" onclick="autoPredictAll()">⚡ Auto-Predict Full Tournament</button>
-      <button class="btn-pred-reset" onclick="resetPredictions()">Reset Picks</button>
+      <button class="btn-auto" onclick="autoPredictAll()" id="pred-auto-btn">⚡ Auto-Predict Full Tournament</button>
+      <button class="btn-pred-reset" onclick="resetPredictions()" id="pred-reset-btn">Reset Picks</button>
     </div>
     <div class="pred-progress-row">
-      <span>Prediction Progress</span>
+      <span id="pred-prog-label">Prediction Progress</span>
       <span id="pred-prog-count">0 / 72 group</span>
     </div>
     <div class="pred-progress-track"><div class="progress-fill" id="pred-prog-fill" style="width:0%"></div></div>
@@ -993,7 +993,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Group stage sub-nav -->
     <div id="pred-group-nav" style="max-width:560px;">
-      <div class="pred-tabs-label">Select Group</div>
+      <div class="pred-tabs-label" id="pred-group-label">Select Group</div>
       <div class="pred-group-tabs" id="pred-group-tabs"></div>
       <div id="pred-group-heading" class="pred-group-heading"></div>
       <div class="swipe-container" id="pred-group-swipe-container">
@@ -1004,7 +1004,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Knockout sub-nav -->
     <div id="pred-ko-nav" style="display:none; max-width:560px;">
-      <div class="pred-tabs-label">Select Round</div>
+      <div class="pred-tabs-label" id="pred-round-label">Select Round</div>
       <div class="pred-ko-tabs" id="pred-ko-tabs"></div>
       <div class="swipe-container" id="pred-ko-swipe-container">
         <div class="swipe-inner" id="pred-ko-swipe-inner"></div>
@@ -5216,6 +5216,16 @@ const STRINGS = {
   ov_qual_final:        {en:'Qualified to Final',           es:'Clasificados a la Final'},
   ov_groups_after:      {en:'Groups complete after Jun 27', es:'Grupos completan después del 27 jun'},
 
+  // ── Predictions tab ──────────────────────────────────────────────────────
+  pred_reset:        {en:'Reset Picks',         es:'Reiniciar'},
+  pred_prog_label:   {en:'Prediction Progress', es:'Progreso de Predicciones'},
+  pred_select_group: {en:'Select Group',        es:'Seleccionar Grupo'},
+  pred_select_round: {en:'Select Round',        es:'Seleccionar Ronda'},
+  pred_group_stage:  {en:'Group Stage',         es:'Fase de Grupos'},
+  pred_knockout:     {en:'Knockout',            es:'Eliminatorias'},
+
+  pred_auto_btn:     {en:'⚡ Auto-Predict Full Tournament', es:'⚡ Predecir Torneo Completo'},
+
 };
 
 function t(key) {
@@ -5257,11 +5267,11 @@ function setLang(lang) {
     ? '<button onclick="setLang(\'es\')">🇪🇸 Español</button>'
     : '<button onclick="setLang(\'en\')">🇬🇧 English</button>';
   dd.style.display = 'none';
-  // Update static nav labels
-  updateStaticLabels();
   // Re-render everything
   renderAll();
   if(document.getElementById('page-stats').classList.contains('active')) renderStatsPage();
+  // Update static labels AFTER render so they aren't overwritten
+  updateStaticLabels();
 }
 
 function updateStaticLabels() {
@@ -5278,10 +5288,10 @@ function updateStaticLabels() {
   if(resGroup) resGroup.textContent = t('tab_group');
   if(resKO)    resKO.textContent    = t('tab_knockout');
   // Predictions subtabs
-  const pvtGroup = document.getElementById('pvt-gs');
+  const pvtGroup = document.getElementById('pvt-group');
   const pvtKO    = document.getElementById('pvt-ko');
-  if(pvtGroup) pvtGroup.textContent = t('tab_group');
-  if(pvtKO)    pvtKO.textContent    = t('tab_knockout');
+  if(pvtGroup) pvtGroup.textContent = t('pred_group_stage');
+  if(pvtKO)    pvtKO.textContent    = t('pred_knockout');
   // Stats tabs
   const stabs = ['smtab-teams','smtab-goals','smtab-cards','smtab-suspended'];
   const stabKeys = ['stats_teams','stats_goals','stats_cards','stats_suspended'];
@@ -5352,6 +5362,17 @@ function initLang() {
     ? '<button onclick="setLang(\'es\')">🇪🇸 Español</button>'
     : '<button onclick="setLang(\'en\')">🇬🇧 English</button>';
   updateStaticLabels();
+  // Predictions extra labels
+  const predAutoBtn = document.getElementById('pred-auto-btn');
+  if(predAutoBtn) predAutoBtn.textContent = t('pred_auto_btn');
+  const predProgLabel = document.getElementById('pred-prog-label');
+  if(predProgLabel) predProgLabel.textContent = t('pred_prog_label');
+  const predResetBtn = document.getElementById('pred-reset-btn');
+  if(predResetBtn) predResetBtn.textContent = t('pred_reset');
+  const predSelectGroup = document.getElementById('pred-group-label');
+  if(predSelectGroup) predSelectGroup.textContent = t('pred_select_group');
+  const predSelectRound = document.getElementById('pred-round-label');
+  if(predSelectRound) predSelectRound.textContent = t('pred_select_round');
 }
 
 // ============================================================
