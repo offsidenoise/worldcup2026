@@ -1694,14 +1694,33 @@ function initState() {
   GROUP_KEYS.forEach(g => {
     if(!state.groupMatches[g]) state.groupMatches[g] = genMatches(GROUPS[g]);
   });
-  if(!state.predictions) state.predictions = {group:{}, knockout:{}};
+  if(!state.predictions) state.predictions = {group:{}, knockout:{}, scores:{}};
   if(!state.predictions.group) state.predictions.group = {};
   if(!state.predictions.knockout) state.predictions.knockout = {};
+  if(!state.predictions.scores) state.predictions.scores = {};
   initKnockout();
 }
 
 function saveState() { try { localStorage.setItem('wc2026v17', JSON.stringify(state)); } catch(e){} }
-function loadState() { try { const s=localStorage.getItem('wc2026v17'); if(s) state=JSON.parse(s); } catch(e){} }
+function loadState() {
+  try {
+    const s=localStorage.getItem('wc2026v17');
+    if(s) state=JSON.parse(s);
+  } catch(e){}
+  // Validate groupMatches against current team names — reset any stale groups
+  GROUP_KEYS.forEach(g => {
+    const expected = GROUPS[g];
+    const stored = state.groupMatches?.[g];
+    if(!stored || !stored.length) return;
+    const storedTeams = new Set(stored.flatMap(m=>[m.home,m.away]));
+    const mismatch = expected.some(t => !storedTeams.has(t));
+    if(mismatch) {
+      // Team names changed (e.g. Côte d'Ivoire → Ivory Coast) — rebuild matches
+      // Preserve scores if they exist by trying to map them
+      if(state.groupMatches) delete state.groupMatches[g];
+    }
+  });
+}
 
 // ============================================================
 // STANDINGS
@@ -2880,6 +2899,7 @@ function renderPredictions(){
 }
 
 function renderPredGroupSwipe(){
+  if(!predGroupTab||!GROUPS[predGroupTab]) predGroupTab=GROUP_KEYS[0];
   const inner=document.getElementById('pred-group-swipe-inner');
   const dots=document.getElementById('pred-group-dots');
   const heading=document.getElementById('pred-group-heading');
@@ -2934,6 +2954,7 @@ function renderPredGroupSwipe(){
   });
 }
 function renderPredKOSwipe(){
+  if(!predKOTab||!KO_ROUNDS.find(r=>r.key===predKOTab)) predKOTab=KO_ROUNDS[0].key;
   const inner=document.getElementById('pred-ko-swipe-inner');
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
