@@ -940,8 +940,8 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
   <!-- RESULTS (Group Stage + Knockout subtabs) -->
   <div id="page-results" class="page">
-    <div class="section-title">Results</div>
-    <div class="section-sub">Enter scores for played matches. Standings and bracket update automatically.</div>
+    <div class="section-title" data-i18n="title_results">Results</div>
+    <div class="section-sub" data-i18n="sub_results">Enter your results to simulate outcomes. Results update automatically after each game, powered by ESPN.</div>
 
     <!-- Subtabs -->
     <div class="pred-view-tabs" style="margin-bottom:24px;">
@@ -951,6 +951,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Group Stage subview -->
     <div id="res-groups-pane">
+      <div class="section-sub" id="res-sub-groups" data-i18n="res_sub_groups" style="margin-bottom:16px;">Enter scores for played matches. Standings and bracket update automatically.</div>
       <div class="legend" style="margin-bottom:16px;">
         <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="legend-top2">Qualified (Top 2)</span></div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--green); opacity:0.6"></div><span id="legend-best3rd">Best 3rd (qualified)</span></div>
@@ -962,8 +963,8 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <!-- Knockout subview -->
     <div id="res-knockout-pane" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div class="section-sub" style="margin:0;">Click a team name to advance them · Use the score button on each card to enter the result</div>
-        <button onclick="resetKOBracket()" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);color:#e74c3c;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:4px;cursor:pointer;white-space:nowrap;margin-left:12px;">Reset Bracket</button>
+        <div class="section-sub" id="res-sub-knockout" data-i18n="res_sub_ko" style="margin:0;">Tap a team to advance them · Or enter the score on each match card</div>
+        <button onclick="resetKOBracket()" id="res-reset-bracket" data-i18n="res_reset_bracket" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);color:#e74c3c;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:4px;cursor:pointer;white-space:nowrap;margin-left:12px;">Reset Bracket</button>
       </div>
       <div class="bracket-container">
         <div class="bracket-wrap" id="bracket-wrap"></div>
@@ -972,15 +973,16 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   </div>
 
   <!-- PREDICTIONS -->
+  
   <div id="page-predictions" class="page">
     <div class="section-title">Predictions</div>
     <div class="section-sub">Pick winners for every match. Locked 🔒 where real scores are already entered.</div>
     <div class="autopick-row">
-      <button class="btn-auto" onclick="autoPredictAll()" id="pred-auto-btn">⚡ Auto-Predict Full Tournament</button>
-      <button class="btn-pred-reset" onclick="resetPredictions()" id="pred-reset-btn">Reset Picks</button>
+      <button class="btn-auto" onclick="autoPredictAll()" id="pred-auto-btn" data-i18n="pred_auto_btn">⚡ Auto-Predict Full Tournament</button>
+      <button class="btn-pred-reset" onclick="resetPredictions()" id="pred-reset-btn" data-i18n="pred_reset">Reset Picks</button>
     </div>
     <div class="pred-progress-row">
-      <span id="pred-prog-label">Prediction Progress</span>
+      <span id="pred-prog-label" data-i18n="pred_prog_label">Prediction Progress</span>
       <span id="pred-prog-count">0 / 72 group</span>
     </div>
     <div class="pred-progress-track"><div class="progress-fill" id="pred-prog-fill" style="width:0%"></div></div>
@@ -993,7 +995,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Group stage sub-nav -->
     <div id="pred-group-nav" style="max-width:560px;">
-      <div class="pred-tabs-label" id="pred-group-label">Select Group</div>
+      <div class="pred-tabs-label" id="pred-group-label" data-i18n="pred_select_group">Select Group</div>
       <div class="pred-group-tabs" id="pred-group-tabs"></div>
       <div id="pred-group-heading" class="pred-group-heading"></div>
       <div class="swipe-container" id="pred-group-swipe-container">
@@ -1004,7 +1006,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
     <!-- Knockout sub-nav -->
     <div id="pred-ko-nav" style="display:none; max-width:560px;">
-      <div class="pred-tabs-label" id="pred-round-label">Select Round</div>
+      <div class="pred-tabs-label" id="pred-round-label" data-i18n="pred_select_round">Select Round</div>
       <div class="pred-ko-tabs" id="pred-ko-tabs"></div>
       <div class="swipe-container" id="pred-ko-swipe-container">
         <div class="swipe-inner" id="pred-ko-swipe-inner"></div>
@@ -3286,6 +3288,9 @@ function setResSubtab(tab) {
   document.getElementById('res-tab-knockout').classList.toggle('active', tab==='knockout');
   document.getElementById('res-groups-pane').style.display   = tab==='groups'   ? '' : 'none';
   document.getElementById('res-knockout-pane').style.display = tab==='knockout' ? '' : 'none';
+  const resSub = document.getElementById('res-sub-groups');
+  if(resSub) resSub.style.display = tab==='groups' ? '' : 'none';
+  updateStaticLabels();
   if(tab==='knockout') renderKnockout();
 }
 
@@ -3300,6 +3305,7 @@ function showPage(page, btn){
     document.getElementById('res-knockout-pane').style.display = resSubtab==='knockout' ? '' : 'none';
     document.getElementById('res-tab-groups').classList.toggle('active', resSubtab==='groups');
     document.getElementById('res-tab-knockout').classList.toggle('active', resSubtab==='knockout');
+    updateStaticLabels();
     if(resSubtab==='knockout') renderKnockout();
   }
   if(page==='stats'){ renderStatsPage(); }
@@ -5088,8 +5094,8 @@ const STRINGS = {
   // Section subtitles
   sub_overview:   {en:'Track progress across all 12 groups · Click any match to set the score',
                    es:'Sigue el progreso en los 12 grupos · Selecciona cualquier partido para ingresar el marcador'},
-  sub_results:    {en:'Enter scores for played matches. Standings and bracket update automatically.',
-                   es:'Ingresa los marcadores. La tabla y el cuadro se actualizan automáticamente.'},
+  sub_results:    {en:'Enter your results to simulate outcomes. Results update automatically after each game, powered by ESPN.',
+                   es:'Ingresa tus resultados para simular. Los resultados se actualizarán automáticamente, gracias a ESPN.'},
   sub_ko:         {en:'Click a team name to advance them · Use the score button on each card to enter the result',
                    es:'Selecciona el nombre de un equipo para avanzarlo · Usa el botón de marcador en cada tarjeta'},
   sub_predictions:{en:'Pick winners for every match. Locked 🔒 where real scores are already entered.',
@@ -5225,6 +5231,12 @@ const STRINGS = {
   pred_knockout:     {en:'Knockout',            es:'Eliminatorias'},
 
   pred_auto_btn:     {en:'⚡ Auto-Predict Full Tournament', es:'⚡ Predecir Torneo Completo'},
+
+  res_sub_groups:  {en:'Enter scores for played matches. Standings and bracket update automatically.',
+                    es:'Ingresa los marcadores. La tabla y el cuadro se actualizan automáticamente.'},
+  res_sub_ko:      {en:'Tap a team to advance them · Or enter the score on each match card',
+                    es:'Ingresa el marcador para avanzar un equipo, o simplemente selecciona a un equipo para que avance.'},
+  res_reset_bracket: {en:'Reset Bracket', es:'Reiniciar Cuadro'},
 
 };
 
@@ -5362,6 +5374,13 @@ function initLang() {
     ? '<button onclick="setLang(\'es\')">🇪🇸 Español</button>'
     : '<button onclick="setLang(\'en\')">🇬🇧 English</button>';
   updateStaticLabels();
+  // Results subtitles
+  const resSubGroups = document.getElementById('res-sub-groups');
+  if(resSubGroups) resSubGroups.textContent = t('res_sub_groups');
+  const resSubKO = document.getElementById('res-sub-knockout');
+  if(resSubKO) resSubKO.textContent = t('res_sub_ko');
+  const resResetBracket = document.getElementById('res-reset-bracket');
+  if(resResetBracket) resResetBracket.textContent = t('res_reset_bracket');
   // Predictions extra labels
   const predAutoBtn = document.getElementById('pred-auto-btn');
   if(predAutoBtn) predAutoBtn.textContent = t('pred_auto_btn');
