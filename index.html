@@ -6097,10 +6097,4 @@ showNotification();
 _liveInitForDay();
 </script>
 </body>
-</html>const tileTitle = isActuallyTomorrow
-    ? t('ov_tomorrows_games')
-    : LANG==='es'
-      ? 'Partidos del ' + dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)
-      : dayOfWeek + "'s Games";
-  const tileSub = `${nextMatches.length} ${nextMatches.length > 1 ? t('ov_n_matches_pl') : t('ov_n_matches')}`;
-  
+</html>
