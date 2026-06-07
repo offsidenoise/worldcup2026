@@ -775,13 +775,12 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   user-select: none;
 }
 .swipe-inner {
-  display: flex;
-  transition: transform 0.3s ease;
-  will-change: transform;
+  display: block;
+  width: 100%;
 }
 .swipe-page {
-  min-width: 100%;
-  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .swipe-dots {
   display: flex;
@@ -1662,8 +1661,8 @@ const FINAL_MATCH  = {matchNum:104};
 const KO_ROUNDS = [
   {key:'R32',    label:'Round of 32',   matches:R32_SEEDS.map(s=>s.matchNum), labelKey:'round_r32'},
   {key:'R16',    label:'Round of 16',   matches:R16_MATCHES.map(s=>s.matchNum), labelKey:'round_r16'},
-  {key:'QF',     label:'Quarterfinals', matches:QF_MATCHES.map(s=>s.matchNum)},
-  {key:'SF',     label:'Semifinals',    matches:SF_MATCHES.map(s=>s.matchNum)},
+  {key:'QF',     label:'Quarterfinals', matches:QF_MATCHES.map(s=>s.matchNum), labelKey:'round_qf'},
+  {key:'SF',     label:'Semifinals',    matches:SF_MATCHES.map(s=>s.matchNum), labelKey:'round_sf'},
   {key:'THIRD',  label:'3rd Place',     matches:[103], labelKey:'round_3rd'},
   {key:'FINAL',  label:'Final',         matches:[104], labelKey:'round_final'},
 ];
@@ -2931,98 +2930,45 @@ function renderPredKOSwipe(){
   const dots=document.getElementById('pred-ko-dots');
   const idx=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
 
-  document.querySelectorAll('.pred-ko-btn').forEach((b,i)=>{
-    b.classList.toggle('active', KO_ROUNDS[i].key===predKOTab);
-  });
+  // Always rebuild tab buttons so labels translate on language switch
+  document.getElementById('pred-ko-tabs').innerHTML=KO_ROUNDS.map(r=>
+    `<button class="pred-ko-btn${predKOTab===r.key?' active':''}" onclick="setPredView('${r.key}')">${r.labelKey?t(r.labelKey):r.label}</button>`
+  ).join('');
 
-  if(!inner.children.length){
-    document.getElementById('pred-ko-tabs').innerHTML=KO_ROUNDS.map(r=>
-      `<button class="pred-ko-btn${predKOTab===r.key?' active':''}" onclick="setPredView('${r.key}')">${r.label}</button>`
-    ).join('');
+  // Always render current page content fresh
+  inner.innerHTML='';
+  const page=document.createElement('div');
+  page.className='swipe-page';
+  page.id=`pred-ko-page-${predKOTab}`;
+  renderPredKO(predKOTab, page);
+  inner.appendChild(page);
 
-    KO_ROUNDS.forEach(r=>{
-      const page=document.createElement('div');
-      page.className='swipe-page';
-      page.id=`pred-ko-page-${r.key}`;
-      renderPredKO(r.key, page);
-      inner.appendChild(page);
-    });
-
-    dots.innerHTML=KO_ROUNDS.map((r,i)=>
-      `<div class="swipe-dot${i===idx?' active':''}"></div>`
-    ).join('');
-
-    initSwipe('pred-ko-swipe-container', function(dir){
-      const cur=KO_ROUNDS.findIndex(r=>r.key===predKOTab);
-      const next=cur+dir;
-      if(next>=0&&next<KO_ROUNDS.length){ predKOTab=KO_ROUNDS[next].key; renderPredKOSwipe(); }
-    });
-  }
-
-  inner.style.transition='none';
-  inner.style.transform=`translateX(-${idx*100}%)`;
-  requestAnimationFrame(()=>{ inner.style.transition='transform 0.25s ease'; });
-
-  document.querySelectorAll('#pred-ko-dots .swipe-dot').forEach((d,i)=>{
-    d.classList.toggle('active', i===idx);
-  });
+  // Dots
+  dots.innerHTML=KO_ROUNDS.map((r,i)=>
+    `<div class="swipe-dot${i===idx?' active':''}"></div>`
+  ).join('');
 }
-// Generic swipe initializer — attaches touch/mouse handlers to a container
-function initSwipe(containerId, onSwipe){
-  const el=document.getElementById(containerId);
-  if(!el) return;
-  // Clone node to remove old listeners
-  const fresh=el.cloneNode(false);
-  while(el.firstChild) fresh.appendChild(el.firstChild);
-  el.parentNode.replaceChild(fresh, el);
-  fresh.id=containerId;
 
-  let startX=0, startY=0, moved=false;
-  fresh.addEventListener('touchstart',function(e){
-    startX=e.touches[0].clientX;
-    startY=e.touches[0].clientY;
-    moved=false;
-  },{passive:true});
-  fresh.addEventListener('touchend',function(e){
-    if(moved) return;
-    const dx=e.changedTouches[0].clientX-startX;
-    const dy=e.changedTouches[0].clientY-startY;
-    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
-      onSwipe(dx<0?1:-1);
-    }
-  },{passive:true});
-  fresh.addEventListener('touchmove',function(e){
-    const dx=e.touches[0].clientX-startX;
-    const dy=e.touches[0].clientY-startY;
-    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>10) moved=false;
-    else moved=true;
-  },{passive:true});
-}
 
 function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
   let html=`<div>`;
-  // Sort matches chronologically by fixture time
-  const sortedIdxs=Array.from({length:state.groupMatches[g].length},(_,i)=>i)
-    .sort((a,b)=>fixtureSortKey(state.groupMatches[g][a].home,state.groupMatches[g][a].away)
-                -fixtureSortKey(state.groupMatches[g][b].home,state.groupMatches[g][b].away));
-  for(const mi of sortedIdxs){
-    const match=state.groupMatches[g][mi];
+  state.groupMatches[g].forEach((match, mi)=>{
     const home=match.home, away=match.away;
     const locked=match.homeScore!==null;
     const fix=getGroupFixture(home,away);
     const pick=state.predictions.group[`${g}_${mi}`];
     const effective=effectiveGroupOutcome(g,mi);
-    const {probs:p,source:pSrc}=locked?{probs:calcProb(home,away),source:'model'}:blendedProb(home,away);
+    const {probs:p}=blendedProb(home,away);
     const hF=FLAGS[home]||'', aF=FLAGS[away]||'';
 
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue?tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&pSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}</div>`;
     html+=`<div class="pred-teams">
-      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${tTeam(home)}</div>
+      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${home}</div>
       <div class="pred-vs">VS</div>
-      <div class="pred-team away${effective==='away'?' pick-winner':''}">${tTeam(away)} ${aF}</div>
+      <div class="pred-team away${effective==='away'?' pick-winner':''}">${away} ${aF}</div>
     </div>`;
 
     if(locked){
@@ -3030,32 +2976,23 @@ function renderPredGroup(g, container){
       const res=match.homeScore>match.awayScore?`${home} won`:match.awayScore>match.homeScore?`${away} won`:'Draw';
       html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Actual result: <strong>${sc}</strong> &nbsp;·&nbsp; ${res}</div>`;
     } else {
-      html+=`<div class="prob-bar">
-  <div class="prob-w1" style="width:${Math.round(p[0])}%"><span class="prob-lbl">${Math.round(p[0])}%</span></div>
-  <div class="prob-dr" style="width:${Math.round(p[1])}%"><span class="prob-lbl">${Math.round(p[1])}%</span></div>
-  <div class="prob-w2" style="width:${Math.round(p[2])}%"><span class="prob-lbl">${Math.round(p[2])}%</span></div>
-</div>`;
+      html+=`<div class="prob-bar"><div class="prob-w1" style="width:${Math.round(p[0])}%"><span class="prob-lbl">${Math.round(p[0])}%</span></div><div class="prob-dr" style="width:${Math.round(p[1])}%"><span class="prob-lbl">${Math.round(p[1])}%</span></div><div class="prob-w2" style="width:${Math.round(p[2])}%"><span class="prob-lbl">${Math.round(p[2])}%</span></div></div>`;
       html+=`<div class="pick-btns">
-        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${tTeam(home)}</button>
-        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">${t('pred_draw_btn')}</button>
-        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${tTeam(away)} ${aF}</button>
+        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${home}</button>
+        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">Draw</button>
+        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${away} ${aF}</button>
       </div>`;
     }
     html+=`</div>`;
-  }
+  });
+
   // Predicted standings for this group
   html+=`<div class="pred-standings">
     <div class="pred-stand-header"><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
-  // Check if predicted 3rd qualifies as best third
-  const predBest8=GROUP_KEYS.map(gg=>({...calcPredStandings(gg)[2],grp:gg}))
-    .filter(x=>x&&x.n)
-    .sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf)
-    .slice(0,8).map(x=>x.n);
   st.forEach((t,i)=>{
-    const adv=i<2||(i===2&&predBest8.includes(t.n));
-    const isBest3rd=i===2&&predBest8.includes(t.n);
+    const adv=i<2;
     html+=`<div class="pred-srow${adv?' adv':''}">
-      <span>${adv?`<span class="pred-qual-bar"${isBest3rd?' style="background:var(--accent2);opacity:0.7;"':''}></span>`:''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''} team-squad-link" data-squad="${t.n}" style="cursor:pointer;">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
+      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${t.n}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
       <span class="pred-pts">${t.pts}</span>
@@ -3064,6 +3001,7 @@ function renderPredGroup(g, container){
   html+=`</div></div>`;
   container.innerHTML=html;
 }
+
 
 function renderPredKO(roundKey, container){
   const bracket=buildPredBracket();
@@ -3074,10 +3012,10 @@ function renderPredKO(roundKey, container){
   let html='';
   const finalM=bracket[104];
   if(roundKey==='FINAL' && finalM&&finalM.winner){
-    const autoLabel=finalM.autoSim?' (simulated)':'';
+    const autoLabel=finalM.autoSim?' '+t('pred_simulated'):'';
     html+=`<div class="pred-champion-card" style="${finalM.autoSim?'opacity:0.75':''}">
       <span class="pred-champ-emoji">🏆</span>
-      <span class="pred-champ-label">2026 World Cup Champion${autoLabel}</span>
+      <span class="pred-champ-label">${t('pred_champion')}${autoLabel}</span>
       <div class="pred-champ-name">${FLAGS[finalM.winner]||''} ${tTeam(finalM.winner)}</div>
     </div>`;
   }
@@ -3103,7 +3041,7 @@ function renderPredKO(roundKey, container){
     </div>`;
 
     if(locked){
-      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Advanced: <strong>${tTeam(realM.winner)}</strong></div>`;
+      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> ${t('pred_advanced_lbl')} <strong>${tTeam(realM.winner)}</strong></div>`;
     } else if(home&&away){
       const {probs:[pA,pB],source:koSrc}=blendedProbKO(home,away);
       html+=`<div class="prob-bar">
@@ -3123,11 +3061,11 @@ function renderPredKO(roundKey, container){
         const winnerCS=compositeStrength(bm.winner);
         const loserCS=compositeStrength(bm.winner===home?away:home);
         const winPct=Math.round(winnerCS/(winnerCS+loserCS)*100);
-        const conf=winPct<=60?'Toss-up — ':winPct<=75?`Leaning ${tTeam(bm.winner)} — `:`Likely ${tTeam(bm.winner)} — `;
+        const conf=winPct<=60?t('pred_tossup')+' — ':winPct<=75?t('pred_leaning')+' '+tTeam(bm.winner)+' — ':t('pred_likely')+' '+tTeam(bm.winner)+' — ';
         html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic':''}">${conf}${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
       }
     } else {
-      html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">Awaiting earlier round results</div>`;
+      html+=`<div style="font-family:'Barlow Condensed';font-size:0.78rem;color:var(--muted);padding:4px 0;">${t('pred_awaiting_res')}</div>`;
     }
     html+=`</div>`;
   }
@@ -5207,6 +5145,15 @@ const STRINGS = {
   res_sub_ko:      {en:'Tap a team to advance them · Or enter the score on each match card',
                     es:'Ingresa el marcador para avanzar un equipo, o simplemente selecciona a un equipo para que avance.'},
   res_reset_bracket: {en:'Reset Bracket', es:'Reiniciar Cuadro'},
+
+  // ── KO Predictions ───────────────────────────────────────────────────────
+  pred_champion:     {en:'2026 World Cup Champion',        es:'Campeón del Mundial 2026'},
+  pred_simulated:    {en:'(simulated)',                    es:'(simulado)'},
+  pred_advanced_lbl: {en:'Advanced:',                      es:'Avanzó:'},
+  pred_awaiting_res: {en:'Awaiting earlier round results', es:'Esperando resultados de rondas anteriores'},
+  pred_tossup:       {en:'Toss-up',                        es:'50/50'},
+  pred_leaning:      {en:'Leaning',                        es:'Favorito'},
+  pred_likely:       {en:'Likely',                         es:'Probable'},
 
 };
 
