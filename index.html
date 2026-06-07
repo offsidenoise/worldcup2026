@@ -2809,7 +2809,7 @@ function renderKnockout(){
     {key:'QF',   label:'Quarterfinals', matches:QF_MATCHES.map(s=>s.matchNum), bronze:false},
     {key:'SF',   label:'Semifinals',    matches:SF_MATCHES.map(s=>s.matchNum), bronze:false},
     {key:'3RD',  label:'3rd Place',     matches:[103], bronze:true, labelKey:'round_3rd'},
-    {key:'F',    label:'Final',         matches:[104], bronze:false, labelKey:'round_final'},
+    {key:'FINAL',label:'Final',         matches:[104], bronze:false, labelKey:'round_final'},
   ];
   rounds.forEach(round=>{
     const rd=document.createElement('div'); rd.className='bracket-round';
@@ -3073,7 +3073,7 @@ function renderPredKO(roundKey, container){
   // Champion card — always show at top of Final tab
   let html='';
   const finalM=bracket[104];
-  if(roundKey==='F' && finalM&&finalM.winner){
+  if(roundKey==='FINAL' && finalM&&finalM.winner){
     const autoLabel=finalM.autoSim?' (simulated)':'';
     html+=`<div class="pred-champion-card" style="${finalM.autoSim?'opacity:0.75':''}">
       <span class="pred-champ-emoji">🏆</span>
