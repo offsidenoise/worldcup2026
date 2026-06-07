@@ -1665,7 +1665,7 @@ const KO_ROUNDS = [
   {key:'QF',     label:'Quarterfinals', matches:QF_MATCHES.map(s=>s.matchNum)},
   {key:'SF',     label:'Semifinals',    matches:SF_MATCHES.map(s=>s.matchNum)},
   {key:'THIRD',  label:'3rd Place',     matches:[103], labelKey:'round_3rd'},
-  {key:'F',      label:'Final',         matches:[104], labelKey:'round_final'},
+  {key:'FINAL',  label:'Final',         matches:[104], labelKey:'round_final'},
 ];
 
 // ============================================================
@@ -2903,58 +2903,28 @@ function renderPredictions(){
 function renderPredGroupSwipe(){
   if(!predGroupTab||!GROUPS[predGroupTab]) predGroupTab=GROUP_KEYS[0];
   const inner=document.getElementById('pred-group-swipe-inner');
-  const dots=document.getElementById('pred-group-dots');
   const heading=document.getElementById('pred-group-heading');
-  const idx=GROUP_KEYS.indexOf(predGroupTab);
 
-  // Update active tab button only (no DOM rebuild)
-  document.querySelectorAll('.pred-group-btn').forEach((b,i)=>{
-    b.classList.toggle('active', GROUP_KEYS[i]===predGroupTab);
-  });
+  // Build tab buttons always (cheap)
+  document.getElementById('pred-group-tabs').innerHTML=GROUP_KEYS.map(g=>
+    `<button class="pred-group-btn${g===predGroupTab?' active':''}" onclick="setPredView('${g}')">${g}</button>`
+  ).join('');
 
   // Update heading
   const teams=GROUPS[predGroupTab];
   heading.innerHTML=`<span class="pred-group-big-letter">${predGroupTab}</span>`+
     `<span class="pred-group-teams-list">${teams.map(t=>(FLAGS[t]||'')+' '+tTeam(t)).join(' · ')}</span>`;
 
-  // Build pages only once
-  if(!inner.children.length){
-    // First render — build tab buttons and all pages
-    document.getElementById('pred-group-tabs').innerHTML=GROUP_KEYS.map(g=>
-      `<button class="pred-group-btn${predGroupTab===g?' active':''}" onclick="setPredView('${g}')">${g}</button>`
-    ).join('');
-
-    GROUP_KEYS.forEach(g=>{
-      const page=document.createElement('div');
-      page.className='swipe-page';
-      page.id=`pred-group-page-${g}`;
-      renderPredGroup(g, page);
-      inner.appendChild(page);
-    });
-
-    // Dots
-    dots.innerHTML=GROUP_KEYS.map((g,i)=>
-      `<div class="swipe-dot${i===idx?' active':''}"></div>`
-    ).join('');
-
-    // Swipe
-    initSwipe('pred-group-swipe-container', function(dir){
-      const cur=GROUP_KEYS.indexOf(predGroupTab);
-      const next=cur+dir;
-      if(next>=0&&next<GROUP_KEYS.length){ predGroupTab=GROUP_KEYS[next]; renderPredGroupSwipe(); }
-    });
-  }
-
-  // Just slide to correct position — instant
-  inner.style.transition='none';
-  inner.style.transform=`translateX(-${idx*100}%)`;
-  requestAnimationFrame(()=>{ inner.style.transition='transform 0.25s ease'; });
-
-  // Update dots
-  document.querySelectorAll('#pred-group-dots .swipe-dot').forEach((d,i)=>{
-    d.classList.toggle('active', i===idx);
-  });
+  // Render just the active group's content
+  inner.innerHTML='';
+  const page=document.createElement('div');
+  page.className='swipe-page';
+  page.id=`pred-group-page-${predGroupTab}`;
+  renderPredGroup(predGroupTab, page);
+  inner.appendChild(page);
 }
+
+
 function renderPredKOSwipe(){
   if(!predKOTab||!KO_ROUNDS.find(r=>r.key===predKOTab)) predKOTab=KO_ROUNDS[0].key;
   const inner=document.getElementById('pred-ko-swipe-inner');
@@ -3199,8 +3169,8 @@ function setPredGroup(g, mi, val){
   }
   saveState();
   // Re-render only this group's page — no full swipe rebuild
-  const page=document.getElementById(`pred-group-page-${g}`);
-  if(page) renderPredGroup(g, page);
+  // Re-render current group if it's visible
+  if(g===predGroupTab) renderPredGroupSwipe();
   // Progress bar
   const gpicked=Object.keys(state.predictions.group).filter(k=>state.predictions.group[k]).length;
   const glocked=GROUP_KEYS.reduce((s,gg)=>s+state.groupMatches[gg].filter(m=>m.homeScore!==null).length,0);
