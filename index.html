@@ -3084,10 +3084,9 @@ function renderPredKO(roundKey, container){
       </div>`;
       if(bm&&bm.winner){
         const isAuto=bm.autoSim&&!pick;
-        const winnerCS=compositeStrength(bm.winner);
-        const loserCS=compositeStrength(bm.winner===home?away:home);
-        const winPct=Math.round(winnerCS/(winnerCS+loserCS)*100);
-        const conf=winPct<=60?t('pred_tossup')+' — ':winPct<=75?t('pred_leaning')+' '+tTeam(bm.winner)+' — ':t('pred_likely')+' '+tTeam(bm.winner)+' — ';
+        const loser=bm.winner===home?away:home;
+        const winPct=blendedProbKO(bm.winner,loser).probs[0];
+        const conf=winPct<=55?t('pred_tossup')+' — ':winPct<=70?t('pred_leaning')+' '+tTeam(bm.winner)+' — ':t('pred_likely')+' '+tTeam(bm.winner)+' — ';
         html+=`<div class="pred-advances" style="${isAuto?'opacity:0.6;font-style:italic':''}">${conf}${FLAGS[bm.winner]||''} ${tTeam(bm.winner)} ${t('pred_advances')}${isAuto?' '+t('pred_auto'):''}</div>`;
       }
     } else {
@@ -5177,7 +5176,7 @@ const STRINGS = {
   pred_simulated:    {en:'(simulated)',                    es:'(simulado)'},
   pred_advanced_lbl: {en:'Advanced:',                      es:'Avanzó:'},
   pred_awaiting_res: {en:'Awaiting earlier round results', es:'Esperando resultados de rondas anteriores'},
-  pred_tossup:       {en:'Toss-up',                        es:'50/50'},
+  pred_tossup:       {en:'Toss-up',                        es:'En el aire'},
   pred_leaning:      {en:'Leaning',                        es:'Favorito'},
   pred_likely:       {en:'Likely',                         es:'Probable'},
 
