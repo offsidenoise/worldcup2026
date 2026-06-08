@@ -1409,8 +1409,32 @@ function blendedProb(home, away) {
   return { probs:[mH,Math.max(1,100-mH-mA),mA], poly:null, source:'model' };
 }
 
+// Polymarket outright winner odds (%) — updated pre-tournament
+// Source: polymarket.com/event/world-cup-winner — $1.2B volume
+const POLY_OUTRIGHT = {
+  'Spain':17.0,'France':16.7,'England':11.2,'Portugal':10.3,
+  'Brazil':9.4,'Argentina':8.6,'Germany':5.2,'Netherlands':3.8,
+  'Norway':2.9,'Japan':2.1,'USA':1.8,'Morocco':1.5,
+  'Colombia':1.2,'Mexico':0.9,'Uruguay':0.8,'Senegal':0.5,
+  'Croatia':0.4,'South Korea':0.4,'Australia':0.3,'Turkey':0.3,
+  'Saudi Arabia':0.2,'Ecuador':0.2,'Algeria':0.2,'Austria':0.2,
+};
+
 function blendedProbKO(home, away) {
-  return { probs:calcProbKO(home, away), source:'model' };
+  const model = calcProbKO(home, away);
+  const pHome = POLY_OUTRIGHT[home];
+  const pAway = POLY_OUTRIGHT[away];
+
+  // Only blend when BOTH teams are in Polymarket outright odds
+  // Avoids inflating probabilities vs unlisted teams
+  if(pHome && pAway) {
+    const polyH2H = Math.round(pHome / (pHome + pAway) * 100);
+    const blended = Math.round(polyH2H * 0.60 + model[0] * 0.40);
+    const pA = Math.max(3, Math.min(97, blended));
+    return { probs:[pA, 100-pA], source:'blend' };
+  }
+  // One or both teams unlisted — k=3 model only
+  return { probs:model, source:'model' };
 }
 
 function refreshPolymarket() { /* odds are hardcoded */ }
@@ -1987,12 +2011,14 @@ function calcProb(teamA, teamB) {
   return [pA, draw, pB];
 }
 function calcProbKO(teamA, teamB) {
-  const csA = compositeStrength(teamA);
-  const csB = compositeStrength(teamB);
-  const total = csA + csB;
-  // Win probability: simple ratio A/(A+B), no draw in KO
-  const pA = total > 0 ? Math.round(csA / total * 100) : 50;
-  return [Math.max(3, pA), Math.max(3, 100 - pA)];
+  // Floor of 35 ensures any WC-qualified team is treated as a credible opponent
+  const csA = Math.max(35, compositeStrength(teamA));
+  const csB = Math.max(35, compositeStrength(teamB));
+  // k=2 exponent spreads probabilities to better reflect quality gaps
+  const pA2 = Math.pow(csA, 2), pB2 = Math.pow(csB, 2);
+  const total = pA2 + pB2;
+  const pA = total > 0 ? Math.round(pA2 / total * 100) : 50;
+  return [Math.max(3, Math.min(97, pA)), Math.max(3, Math.min(97, 100 - pA))];
 }
 
 // ============================================================
