@@ -298,6 +298,7 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .pred-srow { display:grid; grid-template-columns:1fr repeat(5,36px); padding:8px 14px; border-bottom:1px solid var(--border); align-items:center; font-size:0.82rem; transition:background 0.15s; }
 .pred-srow:last-child { border-bottom:none; }
 .pred-srow.adv { background:rgba(201,168,76,0.04); }
+.pred-srow.third-adv { background: rgba(201,168,76,0.04); border-left: 2px solid rgba(201,168,76,0.4); }
 .pred-srow:hover { background:rgba(255,255,255,0.03); }
 .pred-srow span { text-align:center; color:var(--muted); font-size:0.78rem; font-family:'Barlow Condensed',sans-serif; }
 .pred-srow span:first-child { text-align:left; display:flex; align-items:center; gap:6px; }
@@ -2976,6 +2977,17 @@ function renderPredKOSwipe(){
 }
 
 
+// Returns Set of group keys whose 3rd-place team qualifies (best 8 of 12)
+function getBest3rdGroups() {
+  const thirds = GROUP_KEYS.map(g => {
+    const st = calcPredStandings(g);
+    const t = st[2];
+    return { g, pts: t.pts, gd: t.gd, gf: t.gf };
+  });
+  thirds.sort((a,b) => b.pts!==a.pts ? b.pts-a.pts : b.gd!==a.gd ? b.gd-a.gd : b.gf-a.gf);
+  return new Set(thirds.slice(0,8).map(t => t.g));
+}
+
 function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
@@ -3015,9 +3027,11 @@ function renderPredGroup(g, container){
   // Predicted standings for this group
   html+=`<div class="pred-standings">
     <div class="pred-stand-header"><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
+  const best3rds = getBest3rdGroups();
   st.forEach((t,i)=>{
-    const adv=i<2;
-    html+=`<div class="pred-srow${adv?' adv':''}">
+    const adv = i<2 || (i===2 && best3rds.has(g));
+    const is3rd = i===2 && best3rds.has(g);
+    html+=`<div class="pred-srow${adv?' adv':''}${is3rd?' third-adv':''}">
       <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${t.n}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
@@ -5957,6 +5971,44 @@ function pmClose() {
   _lmCurrentPlayer = null;
 }
 
+// ── Swipe gesture handlers for Predictions tab ───────────────────────────────
+function initPredSwipes() {
+  function addSwipe(containerId, onSwipe) {
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    let startX=0, startY=0, moved=false;
+    el.addEventListener('touchstart', function(e) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      moved = false;
+    }, {passive:true});
+    el.addEventListener('touchmove', function(e) {
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) moved = true;
+    }, {passive:true});
+    el.addEventListener('touchend', function(e) {
+      if(!moved) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      if(Math.abs(dx) > 40) onSwipe(dx < 0 ? 1 : -1);
+      moved = false;
+    }, {passive:true});
+  }
+
+  addSwipe('pred-group-swipe-container', function(dir) {
+    const cur = GROUP_KEYS.indexOf(predGroupTab);
+    const next = cur + dir;
+    if(next >= 0 && next < GROUP_KEYS.length) { predGroupTab = GROUP_KEYS[next]; renderPredGroupSwipe(); }
+  });
+
+  addSwipe('pred-ko-swipe-container', function(dir) {
+    const cur = KO_ROUNDS.findIndex(r => r.key === predKOTab);
+    const next = cur + dir;
+    if(next >= 0 && next < KO_ROUNDS.length) { predKOTab = KO_ROUNDS[next].key; renderPredKOSwipe(); }
+  });
+}
+
+
 const TEAM_COACHES = {
   'Czechia':       {name:'Miroslav Koubek',      nat:null},
   'Mexico':        {name:'Javier Aguirre',        nat:null},
@@ -6098,6 +6150,7 @@ renderAll();
 renderTodayMatches();
 showNotification();
 _liveInitForDay();
+initPredSwipes();
 </script>
 </body>
 </html>
