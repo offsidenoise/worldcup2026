@@ -2998,11 +2998,11 @@ function renderPredGroup(g, container){
     const fix=getGroupFixture(home,away);
     const pick=state.predictions.group[`${g}_${mi}`];
     const effective=effectiveGroupOutcome(g,mi);
-    const {probs:p}=blendedProb(home,away);
+    const {probs:p, source:gSrc}=blendedProb(home,away);
     const hF=FLAGS[home]||'', aF=FLAGS[away]||'';
 
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue||''}${locked?' · 🔒 Result locked':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue?tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&gSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${home}</div>
       <div class="pred-vs">VS</div>
