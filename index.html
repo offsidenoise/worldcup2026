@@ -1080,6 +1080,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   <div class="modal">
     <div class="modal-title">SET SCORE</div>
     <div class="modal-fixture-info" id="modal-fixture-info"></div>
+      <div class="modal-lock-note" id="modal-lock-note" style="display:none;text-align:center;color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.85rem;margin:8px 0;"></div>
     <div class="modal-teams">
       <div class="modal-team-name" id="modal-home">Team A</div>
       <div class="modal-vs">VS</div>
@@ -1141,7 +1142,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <div class="modal-actions">
       <button class="btn-clear" onclick="clearMatch()">Clear</button>
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveMatch()">Save</button>
+      <button class="btn-primary" id="modal-save-btn" onclick="saveMatch()">Save</button>
     </div>
   </div>
 </div>
@@ -2350,7 +2351,8 @@ let modalCards={homeYellow:0,homeRed:0,awayYellow:0,awayRed:0};
 function openGroupMatch(group,idx) {
   const m=state.groupMatches[group][idx];
   const fix=getGroupFixture(m.home,m.away);
-  currentMatchCtx={type:'group',group,idx};
+  const isLocked=m.homeScore!==null;
+  currentMatchCtx={type:'group',group,idx,locked:isLocked};
   modalScores={home:m.homeScore??0,away:m.awayScore??0};
   modalCards={homeYellow:m.homeYellow??0,homeRed:m.homeRed??0,awayYellow:m.awayYellow??0,awayRed:m.awayRed??0};
   document.getElementById('modal-home').textContent=m.home;
@@ -2365,6 +2367,18 @@ function openGroupMatch(group,idx) {
   document.getElementById('modal-homeRed').textContent=modalCards.homeRed;
   document.getElementById('modal-awayYellow').textContent=modalCards.awayYellow;
   document.getElementById('modal-awayRed').textContent=modalCards.awayRed;
+  // Locked state: official ESPN result, read-only
+  const lockNote=document.getElementById('modal-lock-note');
+  const saveBtn=document.getElementById('modal-save-btn');
+  if(isLocked){
+    if(lockNote){lockNote.style.display='';lockNote.textContent='🔒 '+t('result_locked_text');}
+    if(saveBtn) saveBtn.style.display='none';
+    document.getElementById('modal-overlay').classList.add('locked-match');
+  } else {
+    if(lockNote) lockNote.style.display='none';
+    if(saveBtn) saveBtn.style.display='';
+    document.getElementById('modal-overlay').classList.remove('locked-match');
+  }
   document.getElementById('modal-overlay').classList.add('open');
 }
 function openKOMatch(matchNum) {
@@ -2387,11 +2401,13 @@ function adjustCards(field, delta){
   document.getElementById(elId).textContent=modalCards[field];
 }
 function adjustScore(side,delta){
+  if(currentMatchCtx&&currentMatchCtx.locked) return;
   modalScores[side]=Math.max(0,(modalScores[side]||0)+delta);
   document.getElementById(`score-${side}`).textContent=modalScores[side];
 }
 function saveMatch(){
   const ctx=currentMatchCtx;
+  if(ctx&&ctx.locked){ closeModal(); return; }
   if(ctx.type==='group'){
     const m=state.groupMatches[ctx.group][ctx.idx];
     m.homeScore=modalScores.home; m.awayScore=modalScores.away;
@@ -2962,7 +2978,12 @@ function renderPredGroup(g, container){
   const st=calcPredStandings(g);
 
   let html=`<div>`;
-  state.groupMatches[g].forEach((match, mi)=>{
+  const _sortedIdx=Array.from({length:state.groupMatches[g].length},(_,i)=>i).sort((a,b)=>
+    fixtureSortKey(state.groupMatches[g][a].home,state.groupMatches[g][a].away)-
+    fixtureSortKey(state.groupMatches[g][b].home,state.groupMatches[g][b].away)
+  );
+  _sortedIdx.forEach((mi)=>{
+    const match=state.groupMatches[g][mi];
     const home=match.home, away=match.away;
     const locked=match.homeScore!==null;
     const fix=getGroupFixture(home,away);
