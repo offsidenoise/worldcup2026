@@ -4923,7 +4923,7 @@ function normalizeESPNTeam(name) {
     'south korea':'South Korea','korea republic':'South Korea','republic of korea':'South Korea',
     'czechia':'Czechia','czech republic':'Czechia',
     'canada':'Canada',
-    'bosnia':'Bosnia','bosnia & herzegovina':'Bosnia','bosnia and herzegovina':'Bosnia',
+    'bosnia':'Bosnia','bosnia & herzegovina':'Bosnia','bosnia and herzegovina':'Bosnia','bosnia-herzegovina':'Bosnia','bosnia herzegovina':'Bosnia',
     'qatar':'Qatar','switzerland':'Switzerland','brazil':'Brazil','morocco':'Morocco',
     'haiti':'Haiti','scotland':'Scotland',
     'united states':'USA','usa':'USA','us':'USA',
@@ -4950,7 +4950,12 @@ function normalizeESPNTeam(name) {
   // Normalize accents then look up
   const key = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
   const keyAccent = name.toLowerCase().trim();
-  return MAP[keyAccent] || MAP[key] || name;
+  if(MAP[keyAccent]) return MAP[keyAccent];
+  if(MAP[key]) return MAP[key];
+  // Fallback: try hyphen/ampersand normalized to spaces
+  const key2 = key.replace(/[-&]/g,' ').replace(/\s+/g,' ').trim();
+  if(MAP[key2]) return MAP[key2];
+  return name;
 }
 
 
@@ -5562,8 +5567,31 @@ async function globalRefresh(){
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _liveParseLineup(sumJson, teamName) {
-  // Returns array of player objects from ESPN summary boxscore
+  // ESPN soccer summary returns lineups under rosters[] (preferred);
+  // fall back to boxscore.players[] if rosters is absent.
   const result = [];
+  const rosters = sumJson?.rosters || [];
+  for (const r of rosters) {
+    const tName = normalizeESPNTeam(r.team?.displayName || r.team?.name || '');
+    if (tName !== teamName) continue;
+    for (const entry of (r.roster || [])) {
+      const a = entry.athlete || {};
+      result.push({
+        espnId:   a.id || '',
+        name:     a.displayName || a.shortName || a.fullName || '',
+        jersey:   entry.jersey || a.jersey || '',
+        headshot: a.headshot?.href || '',
+        position: entry.position?.abbreviation || a.position?.abbreviation || '',
+        starter:  entry.starter === true,
+        formationPlace: entry.formationPlace || null,
+        active:   entry.active !== false,
+      });
+    }
+    break;
+  }
+  if (result.length > 0) return result;
+
+  // Fallback: boxscore.players
   const boxTeams = sumJson?.boxscore?.players || [];
   for (const teamData of boxTeams) {
     const tName = normalizeESPNTeam(teamData.team?.displayName || teamData.team?.name || '');
@@ -5576,6 +5604,7 @@ function _liveParseLineup(sumJson, teamName) {
           name:     a.displayName || a.shortName || '',
           jersey:   a.jersey || '',
           headshot: a.headshot?.href || '',
+          position: a.position?.abbreviation || '',
           starter:  athlete.starter === true,
           active:   athlete.active !== false,
         });
