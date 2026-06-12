@@ -139,6 +139,9 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .match-main { display:flex; align-items:center; gap:6px; }
 .match-team { flex:1; font-family:'Barlow Condensed',sans-serif; font-weight:500; font-size:0.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .match-team.right { text-align:right; }
+.match-cards-line { display:flex; justify-content:space-between; font-size:0.72rem; margin-top:4px; padding:0 4px; font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px; }
+.mcl-side { color:var(--muted); }
+.mcl-side.right { text-align:right; }
 .match-meta-line { font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; color:var(--muted); padding-left:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .meta-sep { margin:0 4px; opacity:0.5; }
 .score-box { display:flex; align-items:center; gap:3px; flex-shrink:0; }
@@ -1140,7 +1143,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn-clear" onclick="clearMatch()">Clear</button>
+      <button id="modal-clear-btn" class="btn-clear" onclick="clearMatch()">Clear</button>
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" id="modal-save-btn" onclick="saveMatch()">Save</button>
     </div>
@@ -2370,13 +2373,16 @@ function openGroupMatch(group,idx) {
   // Locked state: official ESPN result, read-only
   const lockNote=document.getElementById('modal-lock-note');
   const saveBtn=document.getElementById('modal-save-btn');
+  const clearBtn=document.getElementById('modal-clear-btn');
   if(isLocked){
     if(lockNote){lockNote.style.display='';lockNote.textContent='🔒 '+t('result_locked_text');}
     if(saveBtn) saveBtn.style.display='none';
+    if(clearBtn) clearBtn.style.display='none';
     document.getElementById('modal-overlay').classList.add('locked-match');
   } else {
     if(lockNote) lockNote.style.display='none';
     if(saveBtn) saveBtn.style.display='';
+    if(clearBtn) clearBtn.style.display='';
     document.getElementById('modal-overlay').classList.remove('locked-match');
   }
   document.getElementById('modal-overlay').classList.add('open');
@@ -2427,6 +2433,7 @@ function saveMatch(){
 }
 function clearMatch(){
   const ctx=currentMatchCtx;
+  if(ctx&&ctx.locked){ closeModal(); return; }
   if(ctx.type==='group'){
     const m=state.groupMatches[ctx.group][ctx.idx];
     m.homeScore=null; m.awayScore=null;
@@ -2799,6 +2806,10 @@ function renderGroups(){
             <div class="match-team right${played?(awayW?' res-winner':' res-loser'):''}">${tTeam(m.away)}</div>
           </div>
           ${dateTimeStr?`<div class="match-meta-line">${dateTimeStr}</div>`:''}${metaVenue?`<div class="match-meta-line">${metaVenue}</div>`:''}
+          ${played&&((m.homeYellow||0)+(m.homeRed||0)+(m.awayYellow||0)+(m.awayRed||0)>0)?`<div class="match-cards-line">
+            <span class="mcl-side">${(m.homeYellow||0)>0?'🟨'+m.homeYellow:''}${(m.homeRed||0)>0?' 🟥'+m.homeRed:''}</span>
+            <span class="mcl-side right">${(m.awayYellow||0)>0?'🟨'+m.awayYellow:''}${(m.awayRed||0)>0?' 🟥'+m.awayRed:''}</span>
+          </div>`:''}
         </div></div>`;
     }).join('');
     card.innerHTML=`
