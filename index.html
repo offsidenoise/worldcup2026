@@ -5621,12 +5621,16 @@ function _liveParseEvents(sumJson) {
   for (const ev of (sumJson?.keyEvents || [])) {
     const typeText = (ev.type?.text || ev.type?.id || '').toLowerCase();
     const min = ev.clock?.displayValue || ev.clock?.value || '';
-    if (typeText.includes('goal') || ev.scoringPlay) {
-      for (const p of (ev.participants || [])) {
-        const id = p.athlete?.id || p.athlete?.displayName || '';
-        if (!id) continue;
+    // Only count actual goals (scoringPlay) and credit ONLY the scorer (first participant).
+    // ESPN lists scorer first, assister(s) after — crediting all would double-count assists.
+    // Disallowed/annulled goals are NOT marked scoringPlay:true, so they're excluded.
+    const isGoalType = typeText === 'goal' || typeText.includes('goal -') || typeText.includes('penalty - scored');
+    if (ev.scoringPlay === true && !typeText.includes('own goal')) {
+      const scorer = (ev.participants || [])[0];
+      const id = scorer?.athlete?.id || scorer?.athlete?.displayName || '';
+      if (id) {
         if (!goals[id]) goals[id] = [];
-        goals[id].push({ min, name: p.athlete?.displayName || '' });
+        goals[id].push({ min, name: scorer.athlete?.displayName || '' });
       }
     }
     if (typeText.includes('yellow')) {
