@@ -896,6 +896,9 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .pm-section-title { font-family:'Barlow Condensed',sans-serif; font-size:0.7rem;
   font-weight:700; letter-spacing:2px; text-transform:uppercase;
   color:var(--accent); padding:12px 16px 4px; }
+
+.modal-overlay.locked-match .spinner-btn { display:none !important; }
+.modal-overlay.locked-match .score-spinner { gap:0; }
 </style>
 </head>
 <body>
@@ -2409,6 +2412,7 @@ function openKOMatch(matchNum) {
   document.getElementById('modal-overlay').classList.add('open');
 }
 function adjustCards(field, delta){
+  if(currentMatchCtx&&currentMatchCtx.locked){return;}
   modalCards[field]=Math.max(0,(modalCards[field]||0)+delta);
   const elId='modal-'+field;
   document.getElementById(elId).textContent=modalCards[field];
