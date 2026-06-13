@@ -852,6 +852,9 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lm-player-icons { font-size:0.65rem; display:flex; gap:1px;
   flex-shrink:0; white-space:nowrap; }
+.lm-sub-on { color:#4caf50; font-weight:700; margin-left:3px; }
+.lm-sub-off { color:#e53935; font-weight:700; margin-left:3px; }
+.lm-player-pos { color:var(--muted); font-size:0.72rem; font-weight:400; }
 .lm-og { font-size:0.62rem; color:var(--muted); margin-left:2px; }
 .lm-off-divider { font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:8px 4px 4px; border-top:1px solid var(--border); margin-top:6px; opacity:0.7; }
 .lm-player.subbed-off { opacity:0.5; }
@@ -5954,12 +5957,13 @@ function lmRender(eventId) {
         + (ownG > 0 ? '<span class="lm-og">⚽(OG)</span>'.repeat(ownG) : '')
         + ('🟨'.repeat(yellows))
         + ('🟥'.repeat(reds))
-        + ((isOn(p) || isOff(p)) ? '<span class="lm-sub-icon">⇅</span>' : '');
+        + (isOn(p)  ? '<span class="lm-sub-on">↑</span>'  : '')
+        + (isOff(p) ? '<span class="lm-sub-off">↓</span>' : '');
       const seed = _liveSeedLookup(p.name, teamName);
       const num = p.jersey || seed?.num || '';
       return `<div class="lm-player ${cls}" onclick="pmOpen('${encodeURIComponent(JSON.stringify({espnId:pid,name:p.name,jersey:p.jersey,headshot:p.headshot,teamName}))}')">
         <span class="lm-player-num">${num}</span>
-        <span class="lm-player-name">${p.name}</span>
+        <span class="lm-player-name">${p.name}${p.position ? ` <span class="lm-player-pos">(${p.position})</span>` : ''}</span>
         <span class="lm-player-icons">${icons}</span>
       </div>`;
     }
