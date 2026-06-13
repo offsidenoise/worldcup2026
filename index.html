@@ -852,6 +852,9 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lm-player-icons { font-size:0.65rem; display:flex; gap:1px;
   flex-shrink:0; white-space:nowrap; }
+.lm-og { font-size:0.62rem; color:var(--muted); margin-left:2px; }
+.lm-off-divider { font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:8px 4px 4px; border-top:1px solid var(--border); margin-top:6px; opacity:0.7; }
+.lm-player.subbed-off { opacity:0.5; }
 .lm-sub-icon { font-size:0.65rem; color:#aaa; }
 .lm-no-lineup { padding:20px 8px; text-align:center;
   font-size:0.8rem; color:var(--muted); font-family:'Barlow Condensed',sans-serif; }
@@ -5576,15 +5579,30 @@ function _liveParseLineup(sumJson, teamName) {
     if (tName !== teamName) continue;
     for (const entry of (r.roster || [])) {
       const a = entry.athlete || {};
-      result.push({
+        const statBy = {};
+        (entry.stats || []).forEach(s => { statBy[(s.name||'').toLowerCase()] = parseFloat(s.value ?? s.displayValue) || 0; });
+        let pGoals = 0, pOwnGoals = 0, pYellow = 0, pRed = 0;
+        (entry.plays || []).forEach(pl => {
+          if (pl.scoringPlay === true && pl.ownGoal === true) pOwnGoals++;
+          else if (pl.scoringPlay === true && pl.didAssist !== true) pGoals++;
+          if (pl.yellowCard === true) pYellow++;
+          if (pl.redCard === true) pRed++;
+        });
+        if (pGoals === 0 && statBy['totalgoals']) pGoals = statBy['totalgoals'];
+        if (pYellow === 0 && statBy['yellowcards']) pYellow = statBy['yellowcards'];
+        if (pRed === 0 && statBy['redcards']) pRed = statBy['redcards'];
+        result.push({
         espnId:   a.id || '',
         name:     a.displayName || a.shortName || a.fullName || '',
         jersey:   entry.jersey || a.jersey || '',
         headshot: a.headshot?.href || '',
         position: entry.position?.abbreviation || a.position?.abbreviation || '',
         starter:  entry.starter === true,
+        subbedIn: entry.subbedIn === true,
+        subbedOut: entry.subbedOut === true,
         formationPlace: entry.formationPlace || null,
         active:   entry.active !== false,
+        pGoals, pOwnGoals, pYellow, pRed,
       });
     }
     break;
@@ -5617,20 +5635,24 @@ function _liveParseLineup(sumJson, teamName) {
 
 function _liveParseEvents(sumJson) {
   // Returns { goals:{playerId:[{min}]}, yellows:{}, reds:{}, subs:[{off,on,min}] }
-  const goals = {}, yellows = {}, reds = {}, subs = [];
+  const goals = {}, ownGoals = {}, yellows = {}, reds = {}, subs = [];
   for (const ev of (sumJson?.keyEvents || [])) {
     const typeText = (ev.type?.text || ev.type?.id || '').toLowerCase();
     const min = ev.clock?.displayValue || ev.clock?.value || '';
-    // Only count actual goals (scoringPlay) and credit ONLY the scorer (first participant).
-    // ESPN lists scorer first, assister(s) after — crediting all would double-count assists.
-    // Disallowed/annulled goals are NOT marked scoringPlay:true, so they're excluded.
-    const isGoalType = typeText === 'goal' || typeText.includes('goal -') || typeText.includes('penalty - scored');
-    if (ev.scoringPlay === true && !typeText.includes('own goal')) {
+    // Only count actual goals (scoringPlay). Credit ONLY the scorer (first participant) —
+    // ESPN lists scorer first, assister(s) after. Disallowed goals aren't scoringPlay:true.
+    if (ev.scoringPlay === true) {
       const scorer = (ev.participants || [])[0];
       const id = scorer?.athlete?.id || scorer?.athlete?.displayName || '';
       if (id) {
-        if (!goals[id]) goals[id] = [];
-        goals[id].push({ min, name: scorer.athlete?.displayName || '' });
+        if (typeText.includes('own goal') || ev.ownGoal === true) {
+          // Own goal — track separately, mark with (OG), credited to opposing team's score
+          if (!ownGoals[id]) ownGoals[id] = [];
+          ownGoals[id].push({ min, name: scorer.athlete?.displayName || '' });
+        } else {
+          if (!goals[id]) goals[id] = [];
+          goals[id].push({ min, name: scorer.athlete?.displayName || '' });
+        }
       }
     }
     if (typeText.includes('yellow')) {
@@ -5659,7 +5681,7 @@ function _liveParseEvents(sumJson) {
       if (playerOut || playerIn) subs.push({ out: playerOut, in: playerIn, min });
     }
   }
-  return { goals, yellows, reds, subs };
+  return { goals, ownGoals, yellows, reds, subs };
 }
 
 function _liveSeedLookup(espnName, teamName) {
@@ -5736,6 +5758,7 @@ async function _liveFetchAll(espnFetch) {
       clock, period, stateDesc,
       homeLineup, awayLineup,
       goals: evts.goals,
+      ownGoals: evts.ownGoals,
       yellows: evts.yellows,
       reds: evts.reds,
       subs: evts.subs,
@@ -5907,35 +5930,44 @@ function lmRender(eventId) {
       return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>
         <div class="lm-no-lineup">${ev.state === 'pre' ? 'Lineup TBA' : 'No lineup data'}</div>`;
     }
+    const og = ev.ownGoals || {};
+    // Use per-player roster flags (reliable) with keyEvent fallback
+    const isOn  = p => p.subbedIn  || subbedOn.has(p.espnId)  || subbedOn.has(p.name);
+    const isOff = p => p.subbedOut || subbedOff.has(p.espnId) || subbedOff.has(p.name);
+
     const starters = lineup.filter(p => p.starter);
-    const onField  = lineup.filter(p => !p.starter && (subbedOn.has(p.espnId) || subbedOn.has(p.name)));
+    const cameOn   = lineup.filter(p => !p.starter && isOn(p));
 
     function playerRow(p, cls) {
       const pid = p.espnId || p.name;
-      const goals   = (ev.goals[pid] || ev.goals[p.name] || []).length;
-      const yellows = ev.yellows[pid] || ev.yellows[p.name] || 0;
-      const reds    = ev.reds[pid] || ev.reds[p.name] || 0;
-      const isOff   = subbedOff.has(pid) || subbedOff.has(p.name);
-      const isOn    = subbedOn.has(pid) || subbedOn.has(p.name);
-      const icons = (isOn ? '<span class="lm-sub-icon">⇅</span>' : '')
-        + ('⚽'.repeat(goals))
+      // Prefer per-player roster counts; fall back to keyEvent-derived
+      const goals   = p.pGoals   != null && p.pGoals   > 0 ? p.pGoals   : (ev.goals[pid] || ev.goals[p.name] || []).length;
+      const ownG    = p.pOwnGoals!= null && p.pOwnGoals> 0 ? p.pOwnGoals: (og[pid] || og[p.name] || []).length;
+      const yellows = p.pYellow  != null && p.pYellow  > 0 ? p.pYellow  : (ev.yellows[pid] || ev.yellows[p.name] || 0);
+      const reds    = p.pRed     != null && p.pRed     > 0 ? p.pRed     : (ev.reds[pid] || ev.reds[p.name] || 0);
+      const icons = ('⚽'.repeat(goals))
+        + (ownG > 0 ? '<span class="lm-og">⚽(OG)</span>'.repeat(ownG) : '')
         + ('🟨'.repeat(yellows))
-        + ('🟥'.repeat(reds));
+        + ('🟥'.repeat(reds))
+        + ((isOn(p) || isOff(p)) ? '<span class="lm-sub-icon">⇅</span>' : '');
       const seed = _liveSeedLookup(p.name, teamName);
       const num = p.jersey || seed?.num || '';
       return `<div class="lm-player ${cls}" onclick="pmOpen('${encodeURIComponent(JSON.stringify({espnId:pid,name:p.name,jersey:p.jersey,headshot:p.headshot,teamName}))}')">
         <span class="lm-player-num">${num}</span>
         <span class="lm-player-name">${p.name}</span>
-        <span class="lm-player-icons">${icons}${isOff ? '<span class="lm-sub-icon">⇅</span>' : ''}</span>
+        <span class="lm-player-icons">${icons}</span>
       </div>`;
     }
 
-    let rows = starters.map(p => {
-      const isOff = subbedOff.has(p.espnId) || subbedOff.has(p.name);
-      return playerRow(p, isOff ? 'subbed-off' : '');
-    }).join('');
-    if (onField.length) {
-      rows += onField.map(p => playerRow(p, 'subbed-on')).join('');
+    // On the pitch now: starters not subbed off, plus subs who came on (and not later subbed off)
+    const onPitch = [...starters.filter(p => !isOff(p)), ...cameOn.filter(p => !isOff(p))];
+    // Off the pitch: anyone subbed off (starter or sub)
+    const offPitch = lineup.filter(p => isOff(p));
+
+    let rows = onPitch.map(p => playerRow(p, p.starter ? '' : 'subbed-on')).join('');
+    if (offPitch.length) {
+      rows += `<div class="lm-off-divider">Off the pitch</div>`;
+      rows += offPitch.map(p => playerRow(p, 'subbed-off')).join('');
     }
     return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${rows}`;
   }
