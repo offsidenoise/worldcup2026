@@ -855,6 +855,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .lm-og { font-size:0.62rem; color:var(--muted); margin-left:2px; }
 .lm-off-divider { font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:8px 4px 4px; border-top:1px solid var(--border); margin-top:6px; opacity:0.7; }
 .lm-player.subbed-off { opacity:0.5; }
+.lm-player.bench { opacity:0.4; }
 .lm-sub-icon { font-size:0.65rem; color:#aaa; }
 .lm-no-lineup { padding:20px 8px; text-align:center;
   font-size:0.8rem; color:var(--muted); font-family:'Barlow Condensed',sans-serif; }
@@ -5671,12 +5672,14 @@ function _liveParseEvents(sumJson) {
       let playerOut = null, playerIn = null;
       for (const p of (ev.participants || [])) {
         const role = (p.type?.text || p.type?.id || '').toLowerCase();
-        if (role.includes('out') || role.includes('off')) playerOut = p.athlete;
-        else if (role.includes('in')) playerIn = p.athlete;
+        // ESPN roles: "Substitution - On" / "Substitution - Off", or "in"/"out", or "sub in"/"sub out"
+        if (role.includes('off') || (role.includes('out') && !role.includes('in'))) playerOut = p.athlete;
+        else if (role.includes('on') || role.includes('in')) playerIn = p.athlete;
       }
-      if (!playerOut && (ev.participants || []).length === 2) {
-        playerOut = ev.participants[0]?.athlete;
-        playerIn  = ev.participants[1]?.athlete;
+      // Fallback: ESPN often lists the player coming ON first, OFF second for these events.
+      if (!playerIn && !playerOut && (ev.participants || []).length === 2) {
+        playerIn  = ev.participants[0]?.athlete;
+        playerOut = ev.participants[1]?.athlete;
       }
       if (playerOut || playerIn) subs.push({ out: playerOut, in: playerIn, min });
     }
@@ -5932,8 +5935,10 @@ function lmRender(eventId) {
     }
     const og = ev.ownGoals || {};
     // Use per-player roster flags (reliable) with keyEvent fallback
-    const isOn  = p => p.subbedIn  || subbedOn.has(p.espnId)  || subbedOn.has(p.name);
-    const isOff = p => p.subbedOut || subbedOff.has(p.espnId) || subbedOff.has(p.name);
+    // Sub status comes from the substitution-event sets (reliable), matched by id OR name.
+    // Roster subbedIn/subbedOut booleans are NOT populated by ESPN here, so we don't use them.
+    const isOn  = p => subbedOn.has(p.espnId)  || subbedOn.has(p.name);
+    const isOff = p => subbedOff.has(p.espnId) || subbedOff.has(p.name);
 
     const starters = lineup.filter(p => p.starter);
     const cameOn   = lineup.filter(p => !p.starter && isOn(p));
@@ -5959,15 +5964,22 @@ function lmRender(eventId) {
       </div>`;
     }
 
-    // On the pitch now: starters not subbed off, plus subs who came on (and not later subbed off)
-    const onPitch = [...starters.filter(p => !isOff(p)), ...cameOn.filter(p => !isOff(p))];
-    // Off the pitch: anyone subbed off (starter or sub)
+    // Three buckets:
+    //  ON PITCH  = (starter or subbed-on) AND not subbed-off
+    //  SUBBED OFF = subbed-off (played then came off)
+    //  BENCH      = unused subs (never came on)
+    const onPitch  = lineup.filter(p => (p.starter || isOn(p)) && !isOff(p));
     const offPitch = lineup.filter(p => isOff(p));
+    const bench    = lineup.filter(p => !p.starter && !isOn(p) && !isOff(p));
 
     let rows = onPitch.map(p => playerRow(p, p.starter ? '' : 'subbed-on')).join('');
     if (offPitch.length) {
       rows += `<div class="lm-off-divider">Off the pitch</div>`;
       rows += offPitch.map(p => playerRow(p, 'subbed-off')).join('');
+    }
+    if (bench.length) {
+      rows += `<div class="lm-off-divider">Substitutes</div>`;
+      rows += bench.map(p => playerRow(p, 'bench')).join('');
     }
     return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${rows}`;
   }
