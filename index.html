@@ -5961,9 +5961,11 @@ function lmRender(eventId) {
         + (isOff(p) ? '<span class="lm-sub-off">↓</span>' : '');
       const seed = _liveSeedLookup(p.name, teamName);
       const num = p.jersey || seed?.num || '';
+      // Use ESPN position; if it's just "SUB" (or empty), fall back to seed-data position
+      const pos = (p.position && !/^sub/i.test(p.position)) ? p.position : (seed?.pos || '');
       return `<div class="lm-player ${cls}" onclick="pmOpen('${encodeURIComponent(JSON.stringify({espnId:pid,name:p.name,jersey:p.jersey,headshot:p.headshot,teamName}))}')">
         <span class="lm-player-num">${num}</span>
-        <span class="lm-player-name">${p.name}${p.position ? ` <span class="lm-player-pos">(${p.position})</span>` : ''}</span>
+        <span class="lm-player-name">${p.name}${pos ? ` <span class="lm-player-pos">(${pos})</span>` : ''}</span>
         <span class="lm-player-icons">${icons}</span>
       </div>`;
     }
