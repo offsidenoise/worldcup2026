@@ -5599,7 +5599,7 @@ function _liveParseLineup(sumJson, teamName) {
         espnId:   a.id || '',
         name:     a.displayName || a.shortName || a.fullName || '',
         jersey:   entry.jersey || a.jersey || '',
-        headshot: a.headshot?.href || '',
+        headshot: a.headshot?.href || (a.id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${a.id}.png` : ''),
         position: entry.position?.abbreviation || a.position?.abbreviation || '',
         starter:  entry.starter === true,
         subbedIn: entry.subbedIn === true,
