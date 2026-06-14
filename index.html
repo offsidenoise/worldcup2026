@@ -856,6 +856,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .lm-sub-off { color:#e53935; font-weight:700; margin-left:3px; }
 .lm-player-pos { color:var(--muted); font-size:0.72rem; font-weight:400; }
 .lm-og { font-size:0.62rem; color:var(--muted); margin-left:2px; }
+.lm-pen { font-size:0.62rem; color:var(--muted); margin-left:2px; }
 .lm-off-divider { font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:8px 4px 4px; border-top:1px solid var(--border); margin-top:6px; opacity:0.7; }
 .lm-player.subbed-off { opacity:0.5; }
 .lm-player.bench { opacity:0.4; }
@@ -5625,14 +5626,14 @@ function _liveParseLineup(sumJson, teamName) {
       const a = entry.athlete || {};
         const statBy = {};
         (entry.stats || []).forEach(s => { statBy[(s.name||'').toLowerCase()] = parseFloat(s.value ?? s.displayValue) || 0; });
-        let pGoals = 0, pOwnGoals = 0, pYellow = 0, pRed = 0;
+        let pGoals = 0, pOwnGoals = 0, pYellow = 0, pRed = 0, pPenGoals = 0;
         (entry.plays || []).forEach(pl => {
           // Only credit the player who ACTUALLY scored (didScore), never assisters or
           // other players merely attached to the scoring play. ESPN tags a scoring play
           // on multiple players' records, so "scoringPlay" alone over-counts.
           if (pl.scoringPlay === true && pl.didScore === true) {
             if (pl.ownGoal === true) pOwnGoals++;
-            else pGoals++;
+            else { pGoals++; if (pl.penaltyKick === true) pPenGoals++; }
           }
           if (pl.yellowCard === true) pYellow++;
           if (pl.redCard === true) pRed++;
@@ -5651,7 +5652,7 @@ function _liveParseLineup(sumJson, teamName) {
         subbedOut: entry.subbedOut === true,
         formationPlace: entry.formationPlace || null,
         active:   entry.active !== false,
-        pGoals, pOwnGoals, pYellow, pRed,
+        pGoals, pOwnGoals, pYellow, pRed, pPenGoals,
       });
     }
     break;
@@ -5998,7 +5999,10 @@ function lmRender(eventId) {
       const ownG    = p.pOwnGoals!= null && p.pOwnGoals> 0 ? p.pOwnGoals: (og[pid] || og[p.name] || []).length;
       const yellows = p.pYellow  != null && p.pYellow  > 0 ? p.pYellow  : (ev.yellows[pid] || ev.yellows[p.name] || 0);
       const reds    = p.pRed     != null && p.pRed     > 0 ? p.pRed     : (ev.reds[pid] || ev.reds[p.name] || 0);
-      const icons = ('⚽'.repeat(goals))
+      const penG    = p.pPenGoals!= null && p.pPenGoals > 0 ? p.pPenGoals : 0;
+      const normalGoals = Math.max(0, goals - penG);
+      const icons = ('⚽'.repeat(normalGoals))
+        + (penG > 0 ? '<span class="lm-pen">⚽(P)</span>'.repeat(penG) : '')
         + (ownG > 0 ? '<span class="lm-og">⚽(OG)</span>'.repeat(ownG) : '')
         + ('🟨'.repeat(yellows))
         + ('🟥'.repeat(reds))
@@ -6306,3 +6310,4 @@ initPredSwipes();
 </script>
 </body>
 </html>
+
