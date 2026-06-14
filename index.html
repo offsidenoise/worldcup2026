@@ -4809,6 +4809,9 @@ function renderTeamDrill(team,el){
 }
 
 // ── Goals table ───────────────────────────────────────────────
+// Set to true AFTER deploying the appearances.json GitHub Action (see deploy notes).
+// While false, the per-player GAMES column is hidden so users don't see empty dashes.
+const SHOW_PLAYER_GAMES = false;
 function renderStatsGoals(){
   const el=document.getElementById('stats-goals-table');
   if(!el) return;
@@ -4821,13 +4824,13 @@ function renderStatsGoals(){
     if(!rows.length){el.innerHTML='<div style="color:var(--muted);padding:20px 0;font-family:Barlow Condensed,sans-serif;">'+t('no_goals')+'</div>';return;}
     const th=(col,lbl,isNum)=>thH("goalsP",sk,col,lbl,isNum);
     let html='<div class="stats-table-wrap"><table class="stats-tbl"><thead><tr><th class="rank">#</th>'
-      +th('name',t('th_player'),false)+th('country',t('th_country'),false)+th('goals',t('th_goals'),true)+th('games',t('th_games'),true)
+      +th('name',t('th_player'),false)+th('country',t('th_country'),false)+th('goals',t('th_goals'),true)+(SHOW_PLAYER_GAMES?th('games',t('th_games'),true):'')
       +'</tr></thead><tbody>';
     let rank=1;
     rows.forEach((r,i)=>{
       if(i>0&&r.goals!==rows[i-1].goals) rank=i+1;
       html+='<tr><td class="rank">'+rank+'</td><td>'+r.name+'</td><td>'+r.flag+' '+r.country+'</td>'
-        +'<td class="num">'+r.goals+'</td><td class="num">'+(r.games||'—')+'</td></tr>';
+        +'<td class="num">'+r.goals+'</td>'+(SHOW_PLAYER_GAMES?('<td class="num">'+(r.games||'—')+'</td>'):'')+'</tr>';
     });
     html+='</tbody></table></div>';
     el.innerHTML=html;
@@ -5443,6 +5446,24 @@ async function globalRefresh(){
     try{const r=await espnFetch(BASE+'/scoreboard?dates='+todayISO+'&limit=50');if(r.ok){const d=await r.json();(d.events||[]).forEach(e=>{if(!allEvents.find(x=>x.id===e.id))allEvents.push(e);});}}catch(e){}
     const completed=allEvents.filter(e=>e.status?.type?.completed===true);
     let resultsUpdated=0;
+
+    // ── Games-played from a prebuilt appearances.json (single static fetch).
+    //    A scheduled GitHub Action harvests per-match rosters server-side and commits
+    //    appearances.json, so every visitor — including incognito/new users — reads one
+    //    small static file instead of fetching ESPN per match. Keyed "normName|country".
+    const _appNorm=n=>(n||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'');
+    const gamesByPlayer={}; // "normName|country" → appearances (number)
+    try{
+      // Relative path — works wherever the app is hosted. Cache-bust lightly by hour.
+      const bust=Math.floor(Date.now()/3600000);
+      const r=await fetch('appearances.json?v='+bust);
+      if(r.ok){
+        const j=await r.json();
+        if(j && j.games && typeof j.games==='object'){
+          for(const k in j.games){ gamesByPlayer[k]=j.games[k]; }
+        }
+      }
+    }catch(e){}
     for(const event of completed){
       try{
         const comp=event.competitions?.[0]; if(!comp) continue;
@@ -5489,7 +5510,7 @@ async function globalRefresh(){
     if(completed.length>0){
       // Parse goals & cards directly from scoreboard competition.details[] —
       // ESPN puts events there with boolean flags + athletesInvolved[]
-      statsData.players.forEach(p=>{p.goals=0;p.yellows=0;p.reds=0;p.games=p.games||0;});
+      statsData.players.forEach(p=>{p.goals=0;p.yellows=0;p.reds=0;p.games=0;});
       const newPlayers={};
       for(const event of completed){
         try{
@@ -5507,7 +5528,8 @@ async function globalRefresh(){
             const country=teamById[d.team?.id]||'';
             const athletes=d.athletesInvolved||[];
             if(d.scoringPlay===true && !d.ownGoal){
-              // Goal — credit the involved athlete (scorer)
+              // Goal — credit only the scorer (athletesInvolved[0]). Real ESPN data always
+              // populates athletesInvolved; covers "Goal", "Goal - Header", "Penalty - Scored".
               const scorer=athletes[0];
               const pName=scorer?.displayName||scorer?.fullName||scorer?.shortName;
               const tName=teamById[scorer?.team?.id]||country;
@@ -5548,6 +5570,20 @@ async function globalRefresh(){
         }catch(e){}
       }
       Object.values(newPlayers).forEach(p=>{if(!statsData.players.find(sp=>sp.name===p.name&&sp.country===p.country))statsData.players.push(p);});
+      // Credit games played from ESPN's aggregated per-athlete appearances.
+      // Match each player by accent-insensitive name + country, with substring fallback.
+      statsData.players.forEach(p=>{
+        const key=_appNorm(p.name)+'|'+p.country;
+        let g=gamesByPlayer[key];
+        if(g==null){
+          const pk=_appNorm(p.name);
+          for(const k in gamesByPlayer){
+            const [kn,kc]=k.split('|');
+            if(kc===p.country && (kn.includes(pk)||pk.includes(kn))){ g=gamesByPlayer[k]; break; }
+          }
+        }
+        p.games = (g!=null) ? g : 0;
+      });
     }
     if(resultsUpdated>0){
       saveState(); renderAll();
@@ -5591,8 +5627,13 @@ function _liveParseLineup(sumJson, teamName) {
         (entry.stats || []).forEach(s => { statBy[(s.name||'').toLowerCase()] = parseFloat(s.value ?? s.displayValue) || 0; });
         let pGoals = 0, pOwnGoals = 0, pYellow = 0, pRed = 0;
         (entry.plays || []).forEach(pl => {
-          if (pl.scoringPlay === true && pl.ownGoal === true) pOwnGoals++;
-          else if (pl.scoringPlay === true && pl.didAssist !== true) pGoals++;
+          // Only credit the player who ACTUALLY scored (didScore), never assisters or
+          // other players merely attached to the scoring play. ESPN tags a scoring play
+          // on multiple players' records, so "scoringPlay" alone over-counts.
+          if (pl.scoringPlay === true && pl.didScore === true) {
+            if (pl.ownGoal === true) pOwnGoals++;
+            else pGoals++;
+          }
           if (pl.yellowCard === true) pYellow++;
           if (pl.redCard === true) pRed++;
         });
