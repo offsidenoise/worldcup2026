@@ -6023,9 +6023,21 @@ function lmRender(eventId) {
     //  ON PITCH  = (starter or subbed-on) AND not subbed-off
     //  SUBBED OFF = subbed-off (played then came off)
     //  BENCH      = unused subs (never came on)
-    const onPitch  = lineup.filter(p => (p.starter || isOn(p)) && !isOff(p));
-    const offPitch = lineup.filter(p => isOff(p));
-    const bench    = lineup.filter(p => !p.starter && !isOn(p) && !isOff(p));
+    // Sort by ESPN formationPlace (1=GK, 2..11 tactical order). Players with no
+    // place (0/null) — typically subs — sort to the end via a large fallback.
+    const fp = p => { const n = parseInt(p.formationPlace, 10); return (n && n > 0) ? n : 999; };
+    const byFormation = (a, b) => fp(a) - fp(b);
+    // On-pitch ordering: starters first (tactical order, GK→attack), then any
+    // subbed-on players after them — a sub who came on should never sort above the
+    // starting XI even though ESPN may assign him a low formationPlace once active.
+    const onPitchOrder = (a, b) => {
+      const aSub = !a.starter, bSub = !b.starter;
+      if (aSub !== bSub) return aSub ? 1 : -1;
+      return fp(a) - fp(b);
+    };
+    const onPitch  = lineup.filter(p => (p.starter || isOn(p)) && !isOff(p)).sort(onPitchOrder);
+    const offPitch = lineup.filter(p => isOff(p)).sort(byFormation);
+    const bench    = lineup.filter(p => !p.starter && !isOn(p) && !isOff(p)).sort(byFormation);
 
     let rows = onPitch.map(p => playerRow(p, p.starter ? '' : 'subbed-on')).join('');
     if (offPitch.length) {
