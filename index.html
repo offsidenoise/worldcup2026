@@ -5711,7 +5711,7 @@ function _liveParseEvents(sumJson) {
         if (id) yellows[id] = (yellows[id] || 0) + 1;
       }
     }
-    if (typeText.includes('red')) {
+    if (typeText.includes('red card') || ev.redCard === true) {
       for (const p of (ev.participants || [])) {
         const id = p.athlete?.id || p.athlete?.displayName || '';
         if (id) reds[id] = (reds[id] || 0) + 1;
@@ -6310,4 +6310,3 @@ initPredSwipes();
 </script>
 </body>
 </html>
-
