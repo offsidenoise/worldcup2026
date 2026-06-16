@@ -3128,21 +3128,21 @@ function renderPredGroup(g, container){
     html+=`<div class="pred-match-card${locked?' locked':''}">`;
     html+=`<div class="pred-match-meta">${fix.date?fix.date+' · ':''}${fix.venue?tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&gSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
     html+=`<div class="pred-teams">
-      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${home}</div>
+      <div class="pred-team home${effective==='home'?' pick-winner':''}">${hF} ${tTeam(home)}</div>
       <div class="pred-vs">VS</div>
-      <div class="pred-team away${effective==='away'?' pick-winner':''}">${away} ${aF}</div>
+      <div class="pred-team away${effective==='away'?' pick-winner':''}">${tTeam(away)} ${aF}</div>
     </div>`;
 
     if(locked){
       const sc=`${match.homeScore} – ${match.awayScore}`;
-      const res=match.homeScore>match.awayScore?`${home} won`:match.awayScore>match.homeScore?`${away} won`:'Draw';
-      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> Actual result: <strong>${sc}</strong> &nbsp;·&nbsp; ${res}</div>`;
+      const res=match.homeScore>match.awayScore?`${tTeam(home)} ${t('pred_won')}`:match.awayScore>match.homeScore?`${tTeam(away)} ${t('pred_won')}`:t('pred_draw');
+      html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> ${t('pred_actual_result')}: <strong>${sc}</strong> &nbsp;·&nbsp; ${res}</div>`;
     } else {
       html+=`<div class="prob-bar"><div class="prob-w1" style="width:${Math.round(p[0])}%"><span class="prob-lbl">${Math.round(p[0])}%</span></div><div class="prob-dr" style="width:${Math.round(p[1])}%"><span class="prob-lbl">${Math.round(p[1])}%</span></div><div class="prob-w2" style="width:${Math.round(p[2])}%"><span class="prob-lbl">${Math.round(p[2])}%</span></div></div>`;
       html+=`<div class="pick-btns">
-        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${home}</button>
-        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">Draw</button>
-        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${away} ${aF}</button>
+        <button class="pick-btn${pick==='home'?' home-on':''}" onclick="setPredGroup('${g}',${mi},'home')">${hF} ${tTeam(home)}</button>
+        <button class="pick-btn-draw${pick==='draw'?' draw-on':''}" onclick="setPredGroup('${g}',${mi},'draw')">${t('pred_draw')}</button>
+        <button class="pick-btn${pick==='away'?' away-on':''}" onclick="setPredGroup('${g}',${mi},'away')">${tTeam(away)} ${aF}</button>
       </div>`;
     }
     html+=`</div>`;
@@ -3150,13 +3150,13 @@ function renderPredGroup(g, container){
 
   // Predicted standings for this group
   html+=`<div class="pred-standings">
-    <div class="pred-stand-header"><span>Team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
+    <div class="pred-stand-header"><span>${t('th_team')}</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
   const best3rds = getBest3rdGroups();
   st.forEach((t,i)=>{
     const adv = i<2 || (i===2 && best3rds.has(g));
     const is3rd = i===2 && best3rds.has(g);
     html+=`<div class="pred-srow${adv?' adv':''}${is3rd?' third-adv':''}">
-      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${t.n}</span></span>
+      <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
       <span class="pred-pts">${t.pts}</span>
@@ -5284,6 +5284,9 @@ const STRINGS = {
   model_only:{en:'Model only',es:'Solo modelo'},
   logo_title:        {en:'World Cup',  es:'Mundial'},
     pred_actual_result: {en:'Actual result',                     es:'Resultado actual'},
+    pred_won:           {en:'won',                               es:'ganó'},
+    pred_draw:          {en:'Draw',                              es:'Empate'},
+    th_team:            {en:'Team',                              es:'Equipo'},
   pred_advanced:      {en:'Advanced',                            es:'Avanzó'},
   pred_awaiting:      {en:'Awaiting earlier round results',      es:'Esperando resultados de ronda anterior'},
   pred_draw_btn:      {en:'Draw',                                es:'Empate'},
