@@ -1973,18 +1973,44 @@ const ANNEX_C={"ABCDEFGH":"H,G,B,C,A,F,D,E","ABCDEFGI":"C,G,B,D,A,F,E,I","ABCDEF
 const ANNEX_C_SLOTS=[79,85,81,74,82,77,87,80];
 const ANNEX_C_ALLOWED={79:["C","E","F","H","I"],85:["E","F","G","I","J"],81:["B","E","F","I","J"],74:["A","B","C","D","F"],82:["A","E","H","I","J"],77:["C","D","F","G","H"],87:["D","E","I","J","L"],80:["E","H","I","J","K"]};
 const ANNEX_C_WINNER={79:"A",85:"B",81:"D",74:"E",82:"G",77:"I",87:"K",80:"L"};
+function greedyThirdPlaceAssign(groups){
+  // Assign each available 3rd-place group to a valid R32 slot, respecting
+  // ANNEX_C_ALLOWED (which groups may feed each slot) and never pairing a
+  // 3rd against its own group winner. Uses backtracking so a bad early pick
+  // can't strand a later slot with no eligible group (the old greedy first-fit
+  // could leave a slot unfilled / undefined). Works for partial sets too.
+  const avail=groups.slice();
+  // Order slots by fewest eligible options first (most-constrained-first) to
+  // prune the search quickly.
+  const eligible=mn=>avail.filter(g=>ANNEX_C_ALLOWED[mn].includes(g)&&g!==ANNEX_C_WINNER[mn]);
+  const slots=ANNEX_C_SLOTS.slice().sort((a,b)=>eligible(a).length-eligible(b).length);
+
+  const best={count:-1,map:null};
+  function solve(i, used, map){
+    if(i===slots.length){
+      const c=Object.keys(map).length;
+      if(c>best.count){best.count=c;best.map={...map};}
+      return c===Math.min(slots.length, avail.length); // perfect = stop early
+    }
+    const mn=slots[i];
+    const opts=ANNEX_C_ALLOWED[mn].filter(g=>avail.includes(g)&&g!==ANNEX_C_WINNER[mn]&&!used.has(g));
+    // Try assigning each eligible group to this slot...
+    for(const g of opts){
+      used.add(g); map[mn]=g;
+      if(solve(i+1, used, map)) return true;
+      used.delete(g); delete map[mn];
+    }
+    // ...or leave this slot empty (only matters for partial sets) and continue.
+    if(solve(i+1, used, map)) return true;
+    return false;
+  }
+  solve(0, new Set(), {});
+  return best.map||{};
+}
 function getThirdPlaceSlots(qs){
   const key=qs.slice().sort().join('');
   if(ANNEX_C[key]){const v=ANNEX_C[key].split(','),r={};ANNEX_C_SLOTS.forEach((m,i)=>r[m]=v[i]);return r;}
   return greedyThirdPlaceAssign(qs);
-}
-function greedyThirdPlaceAssign(groups){
-  const rem=new Set(groups),r={};
-  const slots=ANNEX_C_SLOTS.slice().sort((a,b)=>
-    ANNEX_C_ALLOWED[a].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[a]).length-
-    ANNEX_C_ALLOWED[b].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[b]).length);
-  for(const mn of slots){const o=ANNEX_C_ALLOWED[mn].filter(g=>rem.has(g)&&g!==ANNEX_C_WINNER[mn]);if(o.length){r[mn]=o[0];rem.delete(o[0]);}}
-  return r;
 }
 // Returns the 8 best third-place teams from actual results
 // Criteria: pts → GD → GF → conduct score (lower better) → FIFA rank
@@ -2079,31 +2105,6 @@ function getKOMatchTeams(matchNum) {
   const stored=state.knockout[matchNum]||{};
   const r32=R32_SEEDS.find(s=>s.matchNum===matchNum);
   if(r32) {
-    // Resolve home slot
-    function resolveSlot(slotCode) {
-      if(slotCode.match(/^[A-L][12]$/)) {
-        return getSlotTeam(slotCode); // {name, preliminary, slot}
-      }
-      if(slotCode==='3rd') {
-        // Pick from best thirds based on current standings
-        const thirds=getBestThirds();
-        // Count how many '3rd' slots come before this one in R32_SEEDS
-        const seedIdx=R32_SEEDS.findIndex(s=>s.matchNum===matchNum);
-        let b3idx=0;
-        for(let i=0;i<seedIdx;i++){
-          if(R32_SEEDS[i].home==='3rd') b3idx++;
-          if(R32_SEEDS[i].away==='3rd') b3idx++;
-        }
-        // Add 1 for home if we're resolving away
-        // (handled by caller — home resolved first, then away)
-        const t=thirds[b3idx];
-        if(!t) return {name:'3rd', preliminary:true, slot:'3rd'};
-        const anyPlayed=state.groupMatches[t.grp].some(m=>m.homeScore!==null);
-        return {name:t.name, preliminary:!allMatchesPlayed(t.grp), slot:`3rd (${t.grp})`};
-      }
-      return {name:slotCode, preliminary:true, slot:slotCode};
-    }
-
     // Count b3 index for this match's home and away
     const seedIdx=R32_SEEDS.findIndex(s=>s.matchNum===matchNum);
     let b3count=0;
