@@ -363,6 +363,15 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
 @media(max-width:600px){ .groups-grid{grid-template-columns:1fr} main{padding:16px 12px 40px} }
+@media(max-width:600px){
+  .header-nav-row{ overflow-x:visible; }
+  .nav-btn{
+    padding:10px 4px; font-size:0.82rem; letter-spacing:0; min-width:0;
+  }
+}
+@media(max-width:380px){
+  .nav-btn{ font-size:0.74rem; padding:10px 2px; }
+}
 
 
 /* ── STATISTICS REDESIGN ── */
@@ -1082,7 +1091,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   <div class="pm-overlay" id="pm-overlay" onclick="if(event.target===this)pmClose()">
     <div class="pm-sheet" id="pm-sheet">
       <div class="pm-handle-wrap"><div class="pm-handle"></div></div>
-      <button class="pm-back" onclick="pmBack()">&#8592; Back</button>
+      <button class="pm-back" data-i18n="pm_back" onclick="pmBack()">&#8592; Back</button>
       <div class="pm-hero" id="pm-hero"></div>
       <div id="pm-body"></div>
     </div>
@@ -4990,7 +4999,7 @@ const TEAM_ES = {
   'DR Congo':'RD del Congo','Ghana':'Ghana','Egypt':'Egipto',
   'South Africa':'Sudáfrica','Algeria':'Argelia','Tunisia':'Túnez',
   'South Korea':'Corea del Sur','Japan':'Japón','IR Iran':'Irán',
-  'Saudi Arabia':'Arabia Saudí','Iraq':'Irak','Jordan':'Jordania',
+  'Saudi Arabia':'Arabia Saudita','Iraq':'Irak','Jordan':'Jordania',
   'Uzbekistan':'Uzbekistán','New Zealand':'Nueva Zelanda',
   'Curaçao':'Curazao','Haiti':'Haití','Panama':'Panamá','Qatar':'Catar',
   'Cabo Verde':'Cabo Verde','South Africa':'Sudáfrica',
@@ -5078,7 +5087,7 @@ const STRINGS = {
   tab_ko:       {en:'Knockout',    es:'Eliminatorias'},
   // Round names
   round_group:  {en:'Group Stage',   es:'Fase de Grupos'},
-  round_r32:    {en:'Round of 32',   es:'Dieciseisavos'},
+  round_r32:    {en:'Round of 32',   es:'Dieciseisavos de Final'},
   round_r16:    {en:'Round of 16',   es:'Octavos de Final'},
   round_qf:     {en:'Quarterfinal',  es:'Cuartos de Final'},
   round_sf:     {en:'Semifinal',     es:'Semifinal'},
@@ -5110,6 +5119,7 @@ const STRINGS = {
   eliminated:   {en:'Eliminated',es:'Eliminado'},
   tbd:          {en:'TBD',       es:'Por Definir'},
   back_teams:   {en:'← Back to Teams', es:'← Volver a Equipos'},
+  pm_back:      {en:'← Back', es:'← Volver'},
   suspended_yes:{en:'Yes',       es:'Sí'},
   suspended_no: {en:'No',        es:'No'},
   no_goals:     {en:'No goals recorded yet.', es:'Sin goles registrados aún.'},
@@ -5184,8 +5194,8 @@ const STRINGS = {
   ov_tomorrows_games:   {en:"Tomorrow's Games",             es:'Partidos de Mañana'},
   ov_no_tmr:            {en:'No games tomorrow',            es:'Sin partidos mañana'},
   ov_teams_qualified:   {en:'Teams Qualified',              es:'Equipos Clasificados'},
-  ov_qual_r32:          {en:'Qualified to Round of 32',     es:'Clasificados a Ronda de 32'},
-  ov_qual_r16:          {en:'Qualified to Round of 16',     es:'Clasificados a Ronda de 16'},
+  ov_qual_r32:          {en:'Qualified to Round of 32',     es:'Clasificados a Dieciseisavos de Final'},
+  ov_qual_r16:          {en:'Qualified to Round of 16',     es:'Clasificados a Octavos de Final'},
   ov_qual_qf:           {en:'Qualified to Quarterfinals',   es:'Clasificados a Cuartos de Final'},
   ov_qual_sf:           {en:'Qualified to Semifinals',      es:'Clasificados a Semifinales'},
   ov_qual_final:        {en:'Qualified to Final',           es:'Clasificados a la Final'},
@@ -5595,7 +5605,7 @@ async function globalRefresh(){
     showNotification(); renderTodayMatches();
     // Update live match data
     try { await _liveFetchAll(espnFetch); renderTodayMatches(); } catch(e) {}
-    const ts=new Date().toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const ts=new Date().toLocaleString(LANG==='es'?'es':[],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     label.textContent=ts; try{localStorage.setItem('wc2026lastrefresh',ts);}catch(e){}
     if(document.getElementById('page-stats')?.classList.contains('active')) renderStatsPage();
   }catch(e){label.textContent=t('refresh_failed');console.error(e);}
@@ -5957,7 +5967,7 @@ function lmRender(eventId) {
       ? `<span class="lm-ht-badge">HT</span>`
       : `<span class="lm-clock-badge"><span class="ov-live-dot"></span>${ev.clock}</span>`;
   } else if (ev.state === 'pre') {
-    clockHtml = `<span style="font-size:0.75rem;color:var(--muted)">Kickoff in ${_liveCountdown(ev)}</span>`;
+    clockHtml = `<span style="font-size:0.75rem;color:var(--muted)">${LANG==='es'?'Comienza en':'Kickoff in'} ${_liveCountdown(ev)}</span>`;
   } else {
     clockHtml = `<span style="font-size:0.75rem;color:var(--muted)">FT</span>`;
   }
@@ -5966,7 +5976,7 @@ function lmRender(eventId) {
     `${ev.homeFlag} ${tTeam(ev.home)} <span class="lm-score-num">${ev.homeScore}–${ev.awayScore}</span> ${tTeam(ev.away)} ${ev.awayFlag} ${clockHtml}`;
 
   document.getElementById('lm-status-line').textContent =
-    ev.state === 'in' ? (ev.period === 1 ? '1st Half' : '2nd Half') : '';
+    ev.state === 'in' ? (ev.period === 1 ? (LANG==='es'?'1ª Parte':'1st Half') : (LANG==='es'?'2ª Parte':'2nd Half')) : '';
 
   // Build substitution map
   const subbedOff = new Set(), subbedOn = new Set();
@@ -6041,11 +6051,11 @@ function lmRender(eventId) {
 
     let rows = onPitch.map(p => playerRow(p, p.starter ? '' : 'subbed-on')).join('');
     if (offPitch.length) {
-      rows += `<div class="lm-off-divider">Off the pitch</div>`;
+      rows += `<div class="lm-off-divider">${LANG==='es'?'Fuera del campo':'Off the pitch'}</div>`;
       rows += offPitch.map(p => playerRow(p, 'subbed-off')).join('');
     }
     if (bench.length) {
-      rows += `<div class="lm-off-divider">Substitutes</div>`;
+      rows += `<div class="lm-off-divider">${LANG==='es'?'Suplentes':'Substitutes'}</div>`;
       rows += bench.map(p => playerRow(p, 'bench')).join('');
     }
     return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${rows}`;
@@ -6092,7 +6102,7 @@ function pmOpen(playerJson) {
     ${photoHtml}${placeholderHtml}
     <div>
       <div class="pm-name">${flag} ${name}</div>
-      <div class="pm-meta">#${num} · ${pos} · Age ${age}</div>
+      <div class="pm-meta">#${num} · ${pos} · ${LANG==='es'?'Edad':'Age'} ${age}</div>
       <div class="pm-meta" style="margin-top:2px;">${club}</div>
     </div>`;
 
@@ -6113,20 +6123,29 @@ function pmOpen(playerJson) {
     matchReds    = ev.reds[pid] || ev.reds[name] || 0;
   }
 
+  const es = (LANG === 'es');
+  const L = {
+    tourn:   es ? 'Estadísticas del torneo' : 'Tournament Stats',
+    match:   es ? 'Este partido' : 'This Match',
+    goals:   es ? 'Goles' : 'Goals',
+    yellows: es ? 'Amarillas' : 'Yellows',
+    reds:    es ? 'Rojas' : 'Reds',
+    games:   es ? 'Partidos' : 'Games',
+  };
   document.getElementById('pm-body').innerHTML = `
-    <div class="pm-section-title">Tournament Stats</div>
+    <div class="pm-section-title">${L.tourn}</div>
     <div class="pm-stats">
-      <div class="pm-stat"><div class="pm-stat-label">⚽ Goals</div><div class="pm-stat-val">${tGoals}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟨 Yellows</div><div class="pm-stat-val">${tYellows}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟥 Reds</div><div class="pm-stat-val">${tReds}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🎮 Games</div><div class="pm-stat-val">${tGames}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">⚽ ${L.goals}</div><div class="pm-stat-val">${tGoals}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟨 ${L.yellows}</div><div class="pm-stat-val">${tYellows}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟥 ${L.reds}</div><div class="pm-stat-val">${tReds}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🎮 ${L.games}</div><div class="pm-stat-val">${tGames}</div></div>
     </div>
     ${ev ? `
-    <div class="pm-section-title">This Match</div>
+    <div class="pm-section-title">${L.match}</div>
     <div class="pm-stats">
-      <div class="pm-stat"><div class="pm-stat-label">⚽ Goals</div><div class="pm-stat-val">${matchGoals}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟨 Yellows</div><div class="pm-stat-val">${matchYellows}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟥 Reds</div><div class="pm-stat-val">${matchReds}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">⚽ ${L.goals}</div><div class="pm-stat-val">${matchGoals}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟨 ${L.yellows}</div><div class="pm-stat-val">${matchYellows}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟥 ${L.reds}</div><div class="pm-stat-val">${matchReds}</div></div>
     </div>` : ''}`;
 }
 
