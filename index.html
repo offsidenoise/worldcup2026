@@ -704,8 +704,8 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   transform:translateY(100%); transition:transform 0.28s cubic-bezier(0.32,0.72,0,1);
 }
 .ov-modal-overlay.open .ov-modal-sheet { transform:translateY(0); }
-.ov-modal-handle-wrap { padding:10px 0 0; display:flex; justify-content:center; flex-shrink:0; }
-.ov-modal-handle { width:36px; height:4px; background:rgba(255,255,255,0.16); border-radius:2px; }
+.ov-modal-handle-wrap { padding:12px 0 8px; display:flex; justify-content:center; flex-shrink:0; cursor:pointer; touch-action:none; }
+.ov-modal-handle { width:40px; height:5px; background:rgba(255,255,255,0.22); border-radius:3px; }
 .ov-modal-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:12px 16px 8px; flex-shrink:0;
@@ -963,7 +963,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   <!-- Next games modal (overview) -->
   <div class="ov-modal-overlay" id="ov-modal" onclick="if(event.target===this)ovCloseModal()">
     <div class="ov-modal-sheet" id="ov-modal-sheet">
-      <div class="ov-modal-handle-wrap"><div class="ov-modal-handle"></div></div>
+      <div class="ov-modal-handle-wrap" id="ov-modal-handle-wrap"><div class="ov-modal-handle"></div></div>
       <div class="ov-modal-header">
         <span class="ov-modal-title" id="ov-modal-title"></span>
         <button class="ov-modal-close" onclick="ovCloseModal()">✕</button>
@@ -2837,16 +2837,39 @@ function ovOpenModal() {
 function ovCloseModal() {
   document.getElementById('ov-modal').classList.remove('open');
 }
-// Swipe down to close
+// Swipe down to close — but ONLY when the scrollable body is already at the top.
+// Otherwise an upward scroll (finger moving down) was being misread as a dismiss.
 (function(){
   let ty = 0;
+  let startedAtTop = false;
   document.addEventListener('DOMContentLoaded', () => {
     const ms = document.getElementById('ov-modal-sheet');
+    const body = document.getElementById('ov-modal-body');
     if (!ms) return;
-    ms.addEventListener('touchstart', e => { ty = e.touches[0].clientY; }, {passive:true});
-    ms.addEventListener('touchend', e => {
-      if (e.changedTouches[0].clientY - ty > 60) ovCloseModal();
+    ms.addEventListener('touchstart', e => {
+      ty = e.touches[0].clientY;
+      // Only arm dismiss if the list is at the very top when the touch begins.
+      startedAtTop = !body || body.scrollTop <= 0;
     }, {passive:true});
+    ms.addEventListener('touchend', e => {
+      if (!startedAtTop) return;                 // user was scrolling content — never dismiss
+      if (body && body.scrollTop > 0) return;    // list moved during gesture — it was a scroll
+      if (e.changedTouches[0].clientY - ty > 80) ovCloseModal();
+    }, {passive:true});
+
+    // The grab handle is always a dismiss target: a pull-down (or tap) on it
+    // closes the sheet no matter where the list is scrolled, since the finger
+    // isn't on the scrollable content.
+    const hw = document.getElementById('ov-modal-handle-wrap');
+    if (hw) {
+      let hy = 0, moved = false;
+      hw.addEventListener('touchstart', e => { hy = e.touches[0].clientY; moved = false; }, {passive:true});
+      hw.addEventListener('touchmove', e => { if (Math.abs(e.touches[0].clientY - hy) > 4) moved = true; }, {passive:true});
+      hw.addEventListener('touchend', e => {
+        const dy = e.changedTouches[0].clientY - hy;
+        if (!moved || dy > 30) ovCloseModal();   // tap, or any meaningful downward drag
+      }, {passive:true});
+    }
   });
 })();
 
@@ -5081,7 +5104,7 @@ let LANG = (function(){try{return localStorage.getItem('wc2026lang')||'en';}catc
 const TEAM_ES = {
   'England':'Inglaterra','France':'Francia','Germany':'Alemania',
   'Netherlands':'Países Bajos','Switzerland':'Suiza','Turkey':'Turquía',
-  'Bosnia':'Bosnia y Herzegovina','Czechia':'República Checa',
+  'Bosnia':'Bosnia y Herzegovina','Czechia':'Chequia',
   'Sweden':'Suecia','Belgium':'Bélgica','Scotland':'Escocia',
   'Croatia':'Croacia','Norway':'Noruega','Spain':'España',
   'USA':'Estados Unidos','Canada':'Canadá','Brazil':'Brasil',
