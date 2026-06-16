@@ -2170,7 +2170,10 @@ function getKOMatchTeams(matchNum) {
     const homeDisplay = makeDisplay(home, hSlot, !!stored.home);
     const awayDisplay = makeDisplay(away, aSlot, !!stored.away);
 
-    return {home, away, homePrelim, awayPrelim, homeDisplay, awayDisplay};
+    return {home, away, homePrelim, awayPrelim, homeDisplay, awayDisplay,
+            homeSlot: hSlot.slot, awaySlot: aSlot.slot,
+            homeConfirmed: !!stored.home || !hSlot.preliminary,
+            awayConfirmed: !!stored.away || !aSlot.preliminary};
   }
   const src=[...R16_MATCHES,...QF_MATCHES,...SF_MATCHES].find(s=>s.matchNum===matchNum);
   if(src) {
@@ -2178,23 +2181,23 @@ function getKOMatchTeams(matchNum) {
     const away=stored.away||state.knockout[src.a]?.winner||null;
     const hLbl=home||`${t('ko_winner')} ${t('ko_match')} ${src.h}`;
     const aLbl=away||`${t('ko_winner')} ${t('ko_match')} ${src.a}`;
-    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl, homeConfirmed:!!home, awayConfirmed:!!away, homeSlot:null, awaySlot:null};
   }
   if(matchNum===104){
     const home=stored.home||state.knockout[101]?.winner||null;
     const away=stored.away||state.knockout[102]?.winner||null;
     const hLbl=home||`${t('ko_winner')} ${t('ko_match')} 101`;
     const aLbl=away||`${t('ko_winner')} ${t('ko_match')} 102`;
-    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl, homeConfirmed:!!home, awayConfirmed:!!away, homeSlot:null, awaySlot:null};
   }
   if(matchNum===103){
     const home=stored.home||state.knockout[101]?.loser||null;
     const away=stored.away||state.knockout[102]?.loser||null;
     const hLbl=home||`${t('ko_loser')} ${t('ko_match')} 101`;
     const aLbl=away||`${t('ko_loser')} ${t('ko_match')} 102`;
-    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl, homeConfirmed:!!home, awayConfirmed:!!away, homeSlot:null, awaySlot:null};
   }
-  return {home:null, away:null, homePrelim:false, awayPrelim:false, homeDisplay:'TBD', awayDisplay:'TBD'};
+  return {home:null, away:null, homePrelim:false, awayPrelim:false, homeDisplay:'TBD', awayDisplay:'TBD', homeConfirmed:false, awayConfirmed:false, homeSlot:null, awaySlot:null};
 }
 
 function propagateKO(matchNum, winner, loser) {
@@ -2547,6 +2550,18 @@ function koRoundLabel(mn) {
   const r = KO_ROUNDS.find(rd => rd.matches && rd.matches.includes(mn));
   return r ? t(r.labelKey) : '';
 }
+function slotPlaceholder(slot) {
+  // Turn a raw slot code into a readable, never-yet-qualified placeholder.
+  // "A1" -> "1st Group A", "B2" -> "2nd Group B", "3rd (...)"/"3rd" -> as-is.
+  if (!slot) return 'TBD';
+  const m = String(slot).match(/^([A-L])([12])$/);
+  if (m) {
+    const ord = m[2] === '1' ? (LANG==='es'?'1º':'1st') : (LANG==='es'?'2º':'2nd');
+    const grpWord = LANG==='es' ? 'Grupo' : 'Group';
+    return `${ord} ${grpWord} ${m[1]}`;
+  }
+  return slot; // "3rd (C/E/F/H/I)" etc. already readable
+}
 function ovGetAllFixtures() {
   const fixtures = [];
   GROUP_KEYS.forEach(g => {
@@ -2570,7 +2585,15 @@ function ovGetAllFixtures() {
   Object.entries(KO_FIXTURES).forEach(([mn, fix]) => {
     const mnInt = parseInt(mn);
     const m = state.knockout[mnInt] || {};
-    const { homeDisplay, awayDisplay } = getKOMatchTeams(mnInt);
+    const ko = getKOMatchTeams(mnInt);
+    const { homeDisplay, awayDisplay, homeConfirmed, awayConfirmed, homeSlot, awaySlot } = ko;
+    // Only show a real team + flag once that side is actually decided. Until then
+    // show the slot placeholder (e.g. "1st Group A") with no flag, even if a team
+    // is currently leading the group.
+    const homeName = homeConfirmed ? homeDisplay : slotPlaceholder(homeSlot || homeDisplay);
+    const awayName = awayConfirmed ? awayDisplay : slotPlaceholder(awaySlot || awayDisplay);
+    const homeFlag = homeConfirmed ? (FLAGS[ko.home] || '') : '';
+    const awayFlag = awayConfirmed ? (FLAGS[ko.away] || '') : '';
     const score = m.homeScore != null ? m.homeScore + '–' + m.awayScore : null;
     const ft = FIXTURE_TIMES[mnInt];
     const kickoffDt = ft ? new Date(ft.date + 'T' + ft.utc + ':00Z') : null;
@@ -2578,9 +2601,9 @@ function ovGetAllFixtures() {
     if (!fixtureDate) return;
     fixtures.push({
       date: fixtureDate, kickoffDt, venue: fix.venue || '',
-      home: homeDisplay || 'TBD', away: awayDisplay || 'TBD', score, grp: koRoundLabel(mnInt),
+      home: homeName || 'TBD', away: awayName || 'TBD', score, grp: koRoundLabel(mnInt),
       matchLabel: fix.label || ('M' + mnInt),
-      homeFlag: FLAGS[homeDisplay] || '', awayFlag: FLAGS[awayDisplay] || '', isKO: true
+      homeFlag, awayFlag, isKO: true
     });
   });
   return fixtures;
@@ -5283,7 +5306,7 @@ const STRINGS = {
     poly_blend:{en:'Polymarket blend',es:'Con Polymarket'},
   model_only:{en:'Model only',es:'Solo modelo'},
   logo_title:        {en:'World Cup',  es:'Mundial'},
-    pred_actual_result: {en:'Actual result',                     es:'Resultado actual'},
+    pred_actual_result: {en:'Actual result',                     es:'Resultado final'},
     pred_won:           {en:'won',                               es:'ganó'},
     pred_draw:          {en:'Draw',                              es:'Empate'},
     th_team:            {en:'Team',                              es:'Equipo'},
