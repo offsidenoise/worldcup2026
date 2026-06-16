@@ -859,6 +859,10 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   color:var(--accent); padding:0 0 6px; border-bottom:1px solid var(--border);
   margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lm-col:first-child { border-right:1px solid var(--border); }
+.lm-coach { font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; color:var(--muted); margin:0 0 6px; }
+.lm-coach-name { color:var(--text); }
+.lm-scorers { font-family:'Barlow Condensed',sans-serif; font-size:0.74rem; color:var(--text); line-height:1.4; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid rgba(31,41,53,0.5); }
+.lm-scorer-min { color:var(--muted); font-size:0.68rem; }
 .lm-player { display:flex; align-items:center; gap:4px;
   padding:4px 2px; border-bottom:1px solid rgba(128,128,128,0.1);
   cursor:pointer; }
@@ -6133,7 +6137,10 @@ function lmRender(eventId) {
 
   function renderCol(lineup, teamName, flag) {
     if (!lineup.length) {
-      return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>
+      const ci = TEAM_COACHES[teamName];
+      const cs = ci ? (ci.nat ? `${ci.name} (${ci.nat})` : ci.name) : '';
+      const ch = cs ? `<div class="lm-coach">${t('coach')}: <span class="lm-coach-name">${cs}</span></div>` : '';
+      return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${ch}
         <div class="lm-no-lineup">${ev.state === 'pre' ? 'Lineup TBA' : 'No lineup data'}</div>`;
     }
     const og = ev.ownGoals || {};
@@ -6202,7 +6209,42 @@ function lmRender(eventId) {
       rows += `<div class="lm-off-divider">${LANG==='es'?'Suplentes':'Substitutes'}</div>`;
       rows += bench.map(p => playerRow(p, 'bench')).join('');
     }
-    return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${rows}`;
+    // Coach (from seed table) shown under the team title.
+    const coachInfo = TEAM_COACHES[teamName];
+    const coachStr = coachInfo ? (coachInfo.nat ? `${coachInfo.name} (${coachInfo.nat})` : coachInfo.name) : '';
+    const coachHtml = coachStr
+      ? `<div class="lm-coach">${t('coach')}: <span class="lm-coach-name">${coachStr}</span></div>`
+      : '';
+
+    // Goal scorers (with minute) for this team — pulled from parsed events.
+    // Each goals[id] entry is {min, name}. Own goals are credited to the OTHER
+    // team's score, so they're listed on the side that benefited via ev.ownGoals.
+    const scorerList = [];
+    lineup.forEach(p => {
+      const pid = p.espnId || p.name;
+      const gl = (ev.goals[pid] || ev.goals[p.name] || []);
+      gl.forEach(g => scorerList.push({ name: p.name, min: g.min, og: false }));
+    });
+    // Own goals that counted for THIS team (scored by an opponent player) — ESPN
+    // credits them to the scorer's record, so we surface them as "(OG)" on the
+    // beneficiary side using the ownGoals map keyed by the scorer.
+    Object.keys(og).forEach(id => {
+      (og[id] || []).forEach(o => {
+        // og entries belong to the scoring (own-goaling) player's team; we show
+        // them on the opposite column. Simplest reliable display: append to the
+        // team that did NOT contain that player. We detect by lineup membership.
+        const inThis = lineup.some(p => (p.espnId === id || p.name === o.name));
+        if (!inThis) scorerList.push({ name: o.name, min: o.min, og: true });
+      });
+    });
+    scorerList.sort((a, b) => (parseInt(a.min) || 0) - (parseInt(b.min) || 0));
+    const scorersHtml = scorerList.length
+      ? `<div class="lm-scorers">⚽ ${scorerList.map(s =>
+          `${s.name}${s.og ? ' (OG)' : ''} ${s.min ? `<span class="lm-scorer-min">${s.min}</span>` : ''}`
+        ).join(', ')}</div>`
+      : '';
+
+    return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${coachHtml}${scorersHtml}${rows}`;
   }
 
   document.getElementById('lm-cols').innerHTML =
