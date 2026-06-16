@@ -859,6 +859,27 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   color:var(--accent); padding:0 0 6px; border-bottom:1px solid var(--border);
   margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lm-col:first-child { border-right:1px solid var(--border); }
+/* Today's match Squad / Stats buttons */
+.ov-match-btns { display:flex; gap:8px; margin-top:8px; }
+.ov-mbtn { flex:1; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.78rem;
+  letter-spacing:1px; text-transform:uppercase; padding:7px 10px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--border); transition:all 0.15s; }
+.ov-mbtn-squad { background:var(--accent); color:#1a1205; border-color:var(--accent); }
+.ov-mbtn-squad:active { opacity:0.85; }
+.ov-mbtn-stats { background:transparent; color:var(--text); }
+.ov-mbtn-stats:active { background:rgba(255,255,255,0.06); }
+.ov-mbtn:disabled { opacity:0.35; cursor:default; }
+/* Stats modal */
+.sm-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px 30px; flex:1; }
+.sm-stats-wrap { display:flex; flex-direction:column; gap:14px; padding-top:6px; }
+.sm-stat-top { display:flex; align-items:center; justify-content:space-between; font-family:'Barlow Condensed',sans-serif; }
+.sm-stat-label { font-size:0.78rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+.sm-stat-val { font-size:1.05rem; font-weight:700; color:var(--muted); min-width:48px; }
+.sm-stat-val.sm-left { text-align:left; } .sm-stat-val.sm-right { text-align:right; }
+.sm-stat-val.lead { color:var(--text); }
+.sm-bar { display:flex; height:6px; border-radius:3px; overflow:hidden; margin-top:5px; background:var(--border); }
+.sm-bar-home { background:var(--accent); }
+.sm-bar-away { background:#3b6ea5; }
 .lm-coach { font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; color:var(--muted); margin:0 0 6px; }
 .lm-coach-name { color:var(--text); }
 .lm-scorers { font-family:'Barlow Condensed',sans-serif; font-size:0.74rem; color:var(--text); line-height:1.4; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid rgba(31,41,53,0.5); }
@@ -1099,6 +1120,19 @@ body.light-mode .stats-tbl th { background:var(--bg); }
         <div id="lm-status-line" style="margin-top:4px;font-size:0.75rem;color:var(--muted)"></div>
       </div>
       <div class="lm-cols" id="lm-cols"></div>
+    </div>
+  </div>
+
+  <!-- Match Stats Modal -->
+  <div class="lm-overlay" id="sm-overlay" onclick="if(event.target===this)smClose()">
+    <div class="lm-sheet" id="sm-sheet">
+      <div class="lm-handle-wrap"><div class="lm-handle"></div></div>
+      <div class="lm-header">
+        <button class="lm-close-btn" onclick="smClose()">✕</button>
+        <div class="lm-score-line" id="sm-score-line"></div>
+        <div id="sm-status-line" style="margin-top:4px;font-size:0.75rem;color:var(--muted)"></div>
+      </div>
+      <div class="sm-body" id="sm-body"></div>
     </div>
   </div>
 
@@ -2688,7 +2722,7 @@ function renderTodayMatches() {
         <div class="ov-today-card-header">
           <span class="ov-card-title">${sub}</span>
         </div>
-        ${todays.map(ovMatchRow).join('')}
+        ${todays.map(m => ovMatchRow(m, true)).join('')}
       </div>`;
   } else {
     box.innerHTML = `<div class="ov-no-games">${t('ov_no_games_today')}</div>`;
@@ -5256,6 +5290,20 @@ const STRINGS = {
   th_gamesleft: {en:'Games Left',es:'Partidos Restantes'},
   // Common
   coach:        {en:'Coach',     es:'Entrenador'},
+  btn_squad:        {en:'Squad',        es:'Plantel'},
+  btn_stats:        {en:'Stats',        es:'Estadísticas'},
+  stat_match_stats: {en:'Match stats',  es:'Estadísticas del partido'},
+  stat_none:        {en:'No stats available yet', es:'Aún no hay estadísticas'},
+  stat_possession:  {en:'Possession',   es:'Posesión'},
+  stat_shots:       {en:'Shots',        es:'Tiros'},
+  stat_shots_on:    {en:'Shots on target', es:'Tiros a puerta'},
+  stat_passes:      {en:'Passes',       es:'Pases'},
+  stat_fouls:       {en:'Fouls',        es:'Faltas'},
+  stat_yellow:      {en:'Yellow cards', es:'Tarjetas amarillas'},
+  stat_red:         {en:'Red cards',    es:'Tarjetas rojas'},
+  stat_offsides:    {en:'Offsides',     es:'Fueras de juego'},
+  stat_corners:     {en:'Corners',      es:'Córners'},
+  stat_saves:       {en:'Saves',        es:'Atajadas'},
   eliminated:   {en:'Eliminated',es:'Eliminado'},
   tbd:          {en:'TBD',       es:'Por Definir'},
   back_teams:   {en:'← Back to Teams', es:'← Volver a Equipos'},
@@ -5910,6 +5958,50 @@ function _liveSeedLookup(espnName, teamName) {
 }
 
 // ── Fetch live data for all in-progress/today matches ─────────────────────────
+// Parse team-level match statistics from ESPN summary boxscore.
+// Defensive: reads only keys actually present; never fabricates values.
+// Returns { home:{key:val,...}, away:{...}, order:[keys in display order] } or null.
+const _STAT_MAP = [
+  // [espn stat name (lowercased), display label key, isPercent]
+  { keys:['possessionpct','possession'],            label:'stat_possession', pct:true },
+  { keys:['totalshots','shots'],                    label:'stat_shots' },
+  { keys:['shotsontarget','ontargetshots','shotson goal'], label:'stat_shots_on' },
+  { keys:['totalpasses','passes'],                  label:'stat_passes' },
+  { keys:['foulscommitted','fouls'],                label:'stat_fouls' },
+  { keys:['yellowcards'],                           label:'stat_yellow' },
+  { keys:['redcards'],                              label:'stat_red' },
+  { keys:['offsides'],                              label:'stat_offsides' },
+  { keys:['woncorners','corners','cornerkicks'],    label:'stat_corners' },
+  { keys:['saves','goalkeepersaves'],               label:'stat_saves' },
+];
+function _liveParseStats(sumJson) {
+  const teams = sumJson?.boxscore?.teams || [];
+  if (teams.length < 2) return null;
+  function statsFor(teamObj) {
+    const out = {};
+    for (const s of (teamObj?.statistics || [])) {
+      const nm = (s.name || s.abbreviation || '').toLowerCase().replace(/\s+/g, '');
+      const val = (s.displayValue != null ? s.displayValue : s.value);
+      if (nm && val != null && val !== '') out[nm] = String(val);
+    }
+    return out;
+  }
+  // ESPN orders teams[0]=home, [1]=away in this feed (matches competitors order).
+  const homeRaw = statsFor(teams[0]);
+  const awayRaw = statsFor(teams[1]);
+  const home = {}, away = {}, order = [];
+  for (const def of _STAT_MAP) {
+    const k = def.keys.find(key => homeRaw[key] != null || awayRaw[key] != null);
+    if (!k) continue; // stat absent for this match — skip entirely, no blank row
+    const hv = homeRaw[k], av = awayRaw[k];
+    if (hv == null && av == null) continue;
+    home[def.label] = hv != null ? hv : '–';
+    away[def.label] = av != null ? av : '–';
+    order.push({ label: def.label, pct: !!def.pct });
+  }
+  return order.length ? { home, away, order } : null;
+}
+
 async function _liveFetchAll(espnFetch) {
   const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
   const todayISO = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
@@ -5955,6 +6047,7 @@ async function _liveFetchAll(espnFetch) {
     const homeLineup = _liveParseLineup(sumJson, homeName);
     const awayLineup = _liveParseLineup(sumJson, awayName);
     const evts = _liveParseEvents(sumJson);
+    const stats = _liveParseStats(sumJson);
 
     _liveEvents[event.id] = {
       id: event.id,
@@ -5971,6 +6064,7 @@ async function _liveFetchAll(espnFetch) {
       yellows: evts.yellows,
       reds: evts.reds,
       subs: evts.subs,
+      stats,
       hasLineups: homeLineup.length > 0 || awayLineup.length > 0,
     };
   }
@@ -6043,7 +6137,7 @@ function _liveInitForDay() {
 }
 
 // ── ovMatchRow updated to show live state ─────────────────────────────────────
-function ovMatchRow(m) {
+function ovMatchRow(m, withButtons) {
   // Find live event for this match
   let liveEv = null;
   for (const ev of Object.values(_liveEvents)) {
@@ -6083,6 +6177,25 @@ function ovMatchRow(m) {
   const liveClass = isLive ? ' is-live' : '';
   const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
 
+  // For today's live/finished matches: explicit Squad (left, default) + Stats (right)
+  // buttons instead of the whole row opening the squad modal.
+  const showBtns = withButtons && liveEv && (isLive || isPost);
+  if (showBtns) {
+    const hasSquad = liveEv.hasLineups;
+    const hasStats = !!(liveEv.stats && liveEv.stats.order && liveEv.stats.order.length);
+    const btns = `<div class="ov-match-btns">
+      <button class="ov-mbtn ov-mbtn-squad" ${hasSquad?`onclick="lmOpen('${liveEv.id}')"`:'disabled'}>${t('btn_squad')}</button>
+      <button class="ov-mbtn ov-mbtn-stats" ${hasStats?`onclick="smOpen('${liveEv.id}')"`:'disabled'}>${t('btn_stats')}</button>
+    </div>`;
+    return `<div class="ov-match-row${liveClass}">
+      <div class="ov-match-teams">
+        ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
+        <div class="ov-match-meta">${meta}</div>
+        ${btns}
+      </div>${right}
+    </div>`;
+  }
+
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
       ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
@@ -6102,6 +6215,55 @@ function lmClose() {
   document.getElementById('lm-overlay').classList.remove('open');
   _lmCurrentEvent = null;
 }
+
+// ── Match Stats Modal ──────────────────────────────────────────────────────────
+function smOpen(eventId) {
+  document.getElementById('sm-overlay').classList.add('open');
+  smRender(eventId);
+}
+function smClose() {
+  document.getElementById('sm-overlay').classList.remove('open');
+}
+function smRender(eventId) {
+  const ev = _liveEvents[eventId];
+  if (!ev) return;
+  const ht = ev.stateDesc?.toLowerCase().includes('half') && ev.clock === '';
+  const clockBadge = ev.state === 'in'
+    ? `<span class="lm-clock-badge"><span class="ov-live-dot"></span>${ht ? 'HT' : ev.clock}</span>`
+    : `<span style="font-size:0.75rem;color:var(--muted)">FT</span>`;
+  document.getElementById('sm-score-line').innerHTML =
+    `${ev.homeFlag} ${tTeam(ev.home)} <span class="lm-score-num">${ev.homeScore}–${ev.awayScore}</span> ${tTeam(ev.away)} ${ev.awayFlag} ${clockBadge}`;
+  document.getElementById('sm-status-line').textContent = t('stat_match_stats');
+
+  const s = ev.stats;
+  if (!s || !s.order.length) {
+    document.getElementById('sm-body').innerHTML = `<div class="lm-no-lineup">${t('stat_none')}</div>`;
+    return;
+  }
+  // For each stat: home value, label, away value, plus a proportional bar.
+  const rows = s.order.map(o => {
+    const hRaw = s.home[o.label] || '–';
+    const aRaw = s.away[o.label] || '–';
+    const hNum = parseFloat(String(hRaw).replace('%','')) || 0;
+    const aNum = parseFloat(String(aRaw).replace('%','')) || 0;
+    const tot = hNum + aNum;
+    const hPct = tot > 0 ? Math.round(hNum / tot * 100) : 50;
+    const aPct = 100 - hPct;
+    return `<div class="sm-stat">
+      <div class="sm-stat-top">
+        <span class="sm-stat-val sm-left${hNum>=aNum?' lead':''}">${hRaw}</span>
+        <span class="sm-stat-label">${t(o.label)}</span>
+        <span class="sm-stat-val sm-right${aNum>=hNum?' lead':''}">${aRaw}</span>
+      </div>
+      <div class="sm-bar">
+        <div class="sm-bar-home" style="width:${hPct}%"></div>
+        <div class="sm-bar-away" style="width:${aPct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('sm-body').innerHTML = `<div class="sm-stats-wrap">${rows}</div>`;
+}
+
 
 function lmRender(eventId) {
   const ev = _liveEvents[eventId];
