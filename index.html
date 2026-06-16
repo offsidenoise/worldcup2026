@@ -878,8 +878,12 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .sm-bar-away { background:#3b6ea5; }
 .lm-coach { font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; color:var(--muted); margin:0 0 6px; }
 .lm-coach-name { color:var(--text); }
-.lm-scorers { font-family:'Barlow Condensed',sans-serif; font-size:0.74rem; color:var(--text); line-height:1.4; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid rgba(31,41,53,0.5); }
-.lm-scorer-min { color:var(--muted); font-size:0.68rem; }
+.sm-scorers { display:flex; align-items:flex-start; gap:10px; padding:4px 0 14px; margin-bottom:10px; border-bottom:1px solid rgba(31,41,53,0.6); }
+.sm-scorers-col { flex:1; font-family:'Barlow Condensed',sans-serif; font-size:0.82rem; color:var(--text); line-height:1.5; }
+.sm-scorers-right { text-align:right; }
+.sm-scorers-icon { color:var(--muted); font-size:0.9rem; padding-top:1px; }
+.sm-scorer-min { color:var(--muted); font-size:0.72rem; }
+.sm-scorer-empty { color:var(--muted); }
 .lm-player { display:flex; align-items:center; gap:4px;
   padding:4px 2px; border-bottom:1px solid rgba(128,128,128,0.1);
   cursor:pointer; }
@@ -5887,14 +5891,17 @@ function _liveParseEvents(sumJson) {
     if (ev.scoringPlay === true) {
       const scorer = (ev.participants || [])[0];
       const id = scorer?.athlete?.id || scorer?.athlete?.displayName || '';
+      const isPen = ev.penaltyKick === true || typeText.includes('penalty');
+      const teamId = ev.team?.id || scorer?.team?.id || '';
       if (id) {
         if (typeText.includes('own goal') || ev.ownGoal === true) {
-          // Own goal — track separately, mark with (OG), credited to opposing team's score
+          // Own goal — credited to the OPPOSING team's score. Record the scorer's
+          // own team id so we can attribute it to the beneficiary side.
           if (!ownGoals[id]) ownGoals[id] = [];
-          ownGoals[id].push({ min, name: scorer.athlete?.displayName || '' });
+          ownGoals[id].push({ min, name: scorer.athlete?.displayName || '', teamId });
         } else {
           if (!goals[id]) goals[id] = [];
-          goals[id].push({ min, name: scorer.athlete?.displayName || '' });
+          goals[id].push({ min, name: scorer.athlete?.displayName || '', pen: isPen, teamId });
         }
       }
     }
@@ -6181,10 +6188,12 @@ function lmOpen(eventId) {
   // Always open on the Squad view; show the Stats tab only if stats exist.
   const ev = _liveEvents[eventId];
   const hasStats = !!(ev && ev.stats && ev.stats.order && ev.stats.order.length);
+  const hasGoals = !!(ev && ((ev.goals && Object.keys(ev.goals).length) || (ev.ownGoals && Object.keys(ev.ownGoals).length)));
+  const showToggle = hasStats || hasGoals;
   const tabStats = document.getElementById('lm-tab-stats');
   const toggle = document.getElementById('lm-toggle');
-  if (tabStats) tabStats.style.display = hasStats ? '' : 'none';
-  if (toggle) toggle.style.display = hasStats ? '' : 'none';
+  if (tabStats) tabStats.style.display = showToggle ? '' : 'none';
+  if (toggle) toggle.style.display = showToggle ? '' : 'none';
   lmSetView('squad');
 }
 
@@ -6210,36 +6219,90 @@ function lmSetView(view) {
     tabStats.classList.remove('active'); tabSquad.classList.add('active');
   }
 }
+function _lmTeamScorers(ev) {
+  // Build "scorers" arrays for home and away from parsed events.
+  // - A player scoring multiple times appears once, minutes joined by commas.
+  // - Penalty goals get (P) after that minute.
+  // - Own goals are attributed to the team that BENEFITED (opponent of scorer),
+  //   shown with (OG) after the minute.
+  const goals = ev.goals || {};
+  const ownGoals = ev.ownGoals || {};
+  const homeIds = new Set((ev.homeLineup || []).map(p => p.espnId || p.name));
+  const homeNames = new Set((ev.homeLineup || []).map(p => p.name));
+  const inHome = (id, name) => homeIds.has(id) || homeNames.has(name);
+
+  const home = [], away = [];
+  // Regular goals — credited to the scorer's own team.
+  Object.keys(goals).forEach(id => {
+    const arr = goals[id]; if (!arr || !arr.length) return;
+    const name = arr[0].name || id;
+    const mins = arr.map(g => `${g.min || ''}${g.pen ? ' (P)' : ''}`.trim()).filter(Boolean).join(', ');
+    const entry = { name, mins, first: parseInt(arr[0].min) || 0 };
+    (inHome(id, name) ? home : away).push(entry);
+  });
+  // Own goals — credited to the OPPOSITE team's tally.
+  Object.keys(ownGoals).forEach(id => {
+    const arr = ownGoals[id]; if (!arr || !arr.length) return;
+    const name = arr[0].name || id;
+    const mins = arr.map(o => `${o.min || ''} (OG)`.trim()).filter(Boolean).join(', ');
+    const entry = { name, mins, first: parseInt(arr[0].min) || 0 };
+    // scorer is on one team; the goal benefits the other team
+    (inHome(id, name) ? away : home).push(entry);
+  });
+  home.sort((a, b) => a.first - b.first);
+  away.sort((a, b) => a.first - b.first);
+  return { home, away };
+}
+
 function lmRenderStats(eventId) {
   const ev = _liveEvents[eventId];
   const box = document.getElementById('lm-stats-view');
   if (!ev) { box.innerHTML = ''; return; }
+
+  // ── Goal scorers section (moved here from the squad columns) ──
+  const sc = _lmTeamScorers(ev);
+  let scorersHtml = '';
+  if (sc.home.length || sc.away.length) {
+    const side = list => list.length
+      ? list.map(s => `<div class="sm-scorer">${s.name} <span class="sm-scorer-min">${s.mins}</span></div>`).join('')
+      : '<div class="sm-scorer sm-scorer-empty">—</div>';
+    scorersHtml = `<div class="sm-scorers">
+      <div class="sm-scorers-col">${side(sc.home)}</div>
+      <div class="sm-scorers-icon">⚽</div>
+      <div class="sm-scorers-col sm-scorers-right">${side(sc.away)}</div>
+    </div>`;
+  }
+
   const s = ev.stats;
-  if (!s || !s.order.length) {
+  let barsHtml = '';
+  if (s && s.order.length) {
+    barsHtml = '<div class="sm-stats-wrap">' + s.order.map(o => {
+      const hRaw = s.home[o.label] || '–';
+      const aRaw = s.away[o.label] || '–';
+      const hNum = parseFloat(String(hRaw).replace('%','')) || 0;
+      const aNum = parseFloat(String(aRaw).replace('%','')) || 0;
+      const tot = hNum + aNum;
+      const hPct = tot > 0 ? Math.round(hNum / tot * 100) : 50;
+      const aPct = 100 - hPct;
+      return `<div class="sm-stat">
+        <div class="sm-stat-top">
+          <span class="sm-stat-val sm-left${hNum>=aNum?' lead':''}">${hRaw}</span>
+          <span class="sm-stat-label">${t(o.label)}</span>
+          <span class="sm-stat-val sm-right${aNum>=hNum?' lead':''}">${aRaw}</span>
+        </div>
+        <div class="sm-bar">
+          <div class="sm-bar-home" style="width:${hPct}%"></div>
+          <div class="sm-bar-away" style="width:${aPct}%"></div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  if (!scorersHtml && !barsHtml) {
     box.innerHTML = `<div class="lm-no-lineup">${t('stat_none')}</div>`;
     return;
   }
-  const rows = s.order.map(o => {
-    const hRaw = s.home[o.label] || '–';
-    const aRaw = s.away[o.label] || '–';
-    const hNum = parseFloat(String(hRaw).replace('%','')) || 0;
-    const aNum = parseFloat(String(aRaw).replace('%','')) || 0;
-    const tot = hNum + aNum;
-    const hPct = tot > 0 ? Math.round(hNum / tot * 100) : 50;
-    const aPct = 100 - hPct;
-    return `<div class="sm-stat">
-      <div class="sm-stat-top">
-        <span class="sm-stat-val sm-left${hNum>=aNum?' lead':''}">${hRaw}</span>
-        <span class="sm-stat-label">${t(o.label)}</span>
-        <span class="sm-stat-val sm-right${aNum>=hNum?' lead':''}">${aRaw}</span>
-      </div>
-      <div class="sm-bar">
-        <div class="sm-bar-home" style="width:${hPct}%"></div>
-        <div class="sm-bar-away" style="width:${aPct}%"></div>
-      </div>
-    </div>`;
-  }).join('');
-  box.innerHTML = `<div class="sm-stats-wrap">${rows}</div>`;
+  box.innerHTML = scorersHtml + barsHtml;
 }
 
 
@@ -6356,35 +6419,7 @@ function lmRender(eventId) {
       ? `<div class="lm-coach">${t('coach')}: <span class="lm-coach-name">${coachStr}</span></div>`
       : '';
 
-    // Goal scorers (with minute) for this team — pulled from parsed events.
-    // Each goals[id] entry is {min, name}. Own goals are credited to the OTHER
-    // team's score, so they're listed on the side that benefited via ev.ownGoals.
-    const scorerList = [];
-    lineup.forEach(p => {
-      const pid = p.espnId || p.name;
-      const gl = (ev.goals[pid] || ev.goals[p.name] || []);
-      gl.forEach(g => scorerList.push({ name: p.name, min: g.min, og: false }));
-    });
-    // Own goals that counted for THIS team (scored by an opponent player) — ESPN
-    // credits them to the scorer's record, so we surface them as "(OG)" on the
-    // beneficiary side using the ownGoals map keyed by the scorer.
-    Object.keys(og).forEach(id => {
-      (og[id] || []).forEach(o => {
-        // og entries belong to the scoring (own-goaling) player's team; we show
-        // them on the opposite column. Simplest reliable display: append to the
-        // team that did NOT contain that player. We detect by lineup membership.
-        const inThis = lineup.some(p => (p.espnId === id || p.name === o.name));
-        if (!inThis) scorerList.push({ name: o.name, min: o.min, og: true });
-      });
-    });
-    scorerList.sort((a, b) => (parseInt(a.min) || 0) - (parseInt(b.min) || 0));
-    const scorersHtml = scorerList.length
-      ? `<div class="lm-scorers">⚽ ${scorerList.map(s =>
-          `${s.name}${s.og ? ' (OG)' : ''} ${s.min ? `<span class="lm-scorer-min">${s.min}</span>` : ''}`
-        ).join(', ')}</div>`
-      : '';
-
-    return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${coachHtml}${scorersHtml}${rows}`;
+    return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${coachHtml}${rows}`;
   }
 
   document.getElementById('lm-cols').innerHTML =
