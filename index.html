@@ -624,6 +624,16 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-next-tile-preview {
   padding:10px 14px; display:flex; align-items:center; gap:10px;
 }
+.ov-upcoming-day-hd {
+  font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; font-weight:700;
+  letter-spacing:1.5px; color:var(--muted); text-transform:uppercase;
+  padding:16px 14px 4px;
+}
+.ov-match-numlbl {
+  font-family:'Barlow Condensed',sans-serif; font-size:0.62rem; font-weight:700;
+  letter-spacing:1px; color:rgba(201,168,76,0.6); text-transform:uppercase;
+  margin-bottom:2px;
+}
 /* No tomorrow variant */
 .ov-no-tmr-title {
   font-family:'Barlow Condensed',sans-serif; font-size:0.8rem;
@@ -946,6 +956,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <div id="espn-notification" class="espn-notification" style="display:none;"></div>
     <div id="ov-today-box"></div>
     <div id="ov-next-tile-box"></div>
+    <div id="ov-upcoming-box"></div>
     <div id="ov-qualified-box"></div>
   </div>
 
@@ -2165,17 +2176,23 @@ function getKOMatchTeams(matchNum) {
   if(src) {
     const home=stored.home||state.knockout[src.h]?.winner||null;
     const away=stored.away||state.knockout[src.a]?.winner||null;
-    return {home, away, homePrelim:false, awayPrelim:false, homeDisplay:home||'TBD', awayDisplay:away||'TBD'};
+    const hLbl=home||`${t('ko_winner')} ${t('ko_match')} ${src.h}`;
+    const aLbl=away||`${t('ko_winner')} ${t('ko_match')} ${src.a}`;
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
   }
   if(matchNum===104){
     const home=stored.home||state.knockout[101]?.winner||null;
     const away=stored.away||state.knockout[102]?.winner||null;
-    return {home, away, homePrelim:false, awayPrelim:false, homeDisplay:home||'TBD', awayDisplay:away||'TBD'};
+    const hLbl=home||`${t('ko_winner')} ${t('ko_match')} 101`;
+    const aLbl=away||`${t('ko_winner')} ${t('ko_match')} 102`;
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
   }
   if(matchNum===103){
     const home=stored.home||state.knockout[101]?.loser||null;
     const away=stored.away||state.knockout[102]?.loser||null;
-    return {home, away, homePrelim:false, awayPrelim:false, homeDisplay:home||'TBD', awayDisplay:away||'TBD'};
+    const hLbl=home||`${t('ko_loser')} ${t('ko_match')} 101`;
+    const aLbl=away||`${t('ko_loser')} ${t('ko_match')} 102`;
+    return {home, away, homePrelim:!home, awayPrelim:!away, homeDisplay:hLbl, awayDisplay:aLbl};
   }
   return {home:null, away:null, homePrelim:false, awayPrelim:false, homeDisplay:'TBD', awayDisplay:'TBD'};
 }
@@ -2526,6 +2543,10 @@ function ovMatchRow(m) {
 }
 
 // Build all fixtures list (group + KO) with kickoff date objects
+function koRoundLabel(mn) {
+  const r = KO_ROUNDS.find(rd => rd.matches && rd.matches.includes(mn));
+  return r ? t(r.labelKey) : '';
+}
 function ovGetAllFixtures() {
   const fixtures = [];
   GROUP_KEYS.forEach(g => {
@@ -2557,7 +2578,8 @@ function ovGetAllFixtures() {
     if (!fixtureDate) return;
     fixtures.push({
       date: fixtureDate, kickoffDt, venue: fix.venue || '',
-      home: homeDisplay || 'TBD', away: awayDisplay || 'TBD', score, grp: fix.round || '',
+      home: homeDisplay || 'TBD', away: awayDisplay || 'TBD', score, grp: koRoundLabel(mnInt),
+      matchLabel: fix.label || ('M' + mnInt),
       homeFlag: FLAGS[homeDisplay] || '', awayFlag: FLAGS[awayDisplay] || '', isKO: true
     });
   });
@@ -2718,6 +2740,61 @@ function renderNextTile() {
         </div>
       </div>`;
   }
+}
+
+// ── Upcoming Games tile: every fixture from the day AFTER tomorrow to the end
+// of the tournament, grouped by day. Reuses the existing fixtures list (which
+// already includes knockout fixtures with FIFA-style placeholders that upgrade
+// to real team+flag once known) and the existing overview modal sheet. ──
+function _ovUpcomingMatches() {
+  const all = ovGetAllFixtures();
+  // "Day after tomorrow" relative to the current date (local), i.e. start at
+  // today + 2 days. On Jun 17 -> show Jun 19 onward; on Jun 18 -> Jun 20 onward.
+  const dayAfterTomorrow = new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-CA');
+  return all
+    .filter(f => f.date && f.date >= dayAfterTomorrow && !f.score)
+    .sort((a, b) => a.kickoffDt && b.kickoffDt ? (a.kickoffDt - b.kickoffDt) : (a.date < b.date ? -1 : 1));
+}
+
+function renderUpcomingTile() {
+  const box = document.getElementById('ov-upcoming-box');
+  if (!box) return;
+  const matches = _ovUpcomingMatches();
+  if (!matches.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="ov-next-tile" onclick="ovOpenUpcoming()" style="margin-top:14px;">
+      <div class="ov-next-tile-top">
+        <div class="ov-next-tile-label">
+          <div class="ov-next-tile-title">${t('ov_upcoming_games')}</div>
+        </div>
+        <div class="ov-next-tile-chevron">&#8250;</div>
+      </div>
+      <div class="ov-next-tile-preview">
+        ${ovMatchRow(matches[0])}
+      </div>
+    </div>`;
+}
+
+function ovOpenUpcoming() {
+  const matches = _ovUpcomingMatches();
+  document.getElementById('ov-modal-title').textContent = t('ov_upcoming_games');
+  // Group by calendar date, preserving chronological order.
+  const groups = [];
+  const byDate = {};
+  matches.forEach(m => {
+    if (!byDate[m.date]) { byDate[m.date] = []; groups.push(m.date); }
+    byDate[m.date].push(m);
+  });
+  let html = '<div style="padding:8px 0">';
+  groups.forEach(date => {
+    const dt = byDate[date][0].kickoffDt || new Date(date + 'T12:00:00');
+    const hdr = dt.toLocaleDateString(LANG==='es'?'es':[], {weekday:'short', month:'short', day:'numeric'}).toUpperCase();
+    html += `<div class="ov-upcoming-day-hd">${hdr}</div>`;
+    html += byDate[date].map(ovMatchRow).join('');
+  });
+  html += '</div>';
+  document.getElementById('ov-modal-body').innerHTML = html;
+  document.getElementById('ov-modal').classList.add('open');
 }
 
 // Render qualified section
@@ -3301,6 +3378,7 @@ function confirmReset(){
 function renderAll(){
   renderOverview();
   renderNextTile();
+  renderUpcomingTile();
   renderGroups();
   renderTodayMatches();
   if(resSubtab==='knockout' && document.getElementById('page-results').classList.contains('active')){
@@ -5204,6 +5282,10 @@ const STRINGS = {
   ov_n_matches:         {en:'match',                        es:'partido'},
   ov_n_matches_pl:      {en:'matches',                      es:'partidos'},
   ov_tomorrows_games:   {en:"Tomorrow's Games",             es:'Partidos de Mañana'},
+  ov_upcoming_games:    {en:'Upcoming Games',               es:'Próximos Partidos'},
+  ko_winner:    {en:'Winner', es:'Ganador'},
+  ko_loser:     {en:'Loser',  es:'Perdedor'},
+  ko_match:     {en:'Match',  es:'Partido'},
   ov_no_tmr:            {en:'No games tomorrow',            es:'Sin partidos mañana'},
   ov_teams_qualified:   {en:'Teams Qualified',              es:'Equipos Clasificados'},
   ov_qual_r32:          {en:'Qualified to Round of 32',     es:'Clasificados a Dieciseisavos de Final'},
@@ -5946,10 +6028,11 @@ function ovMatchRow(m) {
 
   const clickAttr = canOpen ? `onclick="lmOpen('${liveEv.id}')"` : '';
   const liveClass = isLive ? ' is-live' : '';
+  const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
 
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
-      <div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
+      ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
       <div class="ov-match-meta">${meta}</div>
     </div>${right}
   </div>`;
