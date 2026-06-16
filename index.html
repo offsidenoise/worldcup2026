@@ -859,17 +859,13 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   color:var(--accent); padding:0 0 6px; border-bottom:1px solid var(--border);
   margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lm-col:first-child { border-right:1px solid var(--border); }
-/* Today's match Squad / Stats buttons */
-.ov-match-btns { display:flex; gap:8px; margin-top:8px; }
-.ov-mbtn { flex:1; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.78rem;
+/* Squad / Stats toggle inside lineup modal */
+.lm-toggle { display:flex; gap:8px; margin-top:10px; }
+.lm-toggle-btn { flex:1; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.78rem;
   letter-spacing:1px; text-transform:uppercase; padding:7px 10px; border-radius:8px; cursor:pointer;
-  border:1px solid var(--border); transition:all 0.15s; }
-.ov-mbtn-squad { background:var(--accent); color:#1a1205; border-color:var(--accent); }
-.ov-mbtn-squad:active { opacity:0.85; }
-.ov-mbtn-stats { background:transparent; color:var(--text); }
-.ov-mbtn-stats:active { background:rgba(255,255,255,0.06); }
-.ov-mbtn:disabled { opacity:0.35; cursor:default; }
-/* Stats modal */
+  border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; }
+.lm-toggle-btn.active { background:var(--accent); color:#1a1205; border-color:var(--accent); }
+/* Stats comparison view */
 .sm-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px 30px; flex:1; }
 .sm-stats-wrap { display:flex; flex-direction:column; gap:14px; padding-top:6px; }
 .sm-stat-top { display:flex; align-items:center; justify-content:space-between; font-family:'Barlow Condensed',sans-serif; }
@@ -1118,21 +1114,13 @@ body.light-mode .stats-tbl th { background:var(--bg); }
         <button class="lm-close-btn" onclick="lmClose()">✕</button>
         <div class="lm-score-line" id="lm-score-line"></div>
         <div id="lm-status-line" style="margin-top:4px;font-size:0.75rem;color:var(--muted)"></div>
+        <div class="lm-toggle" id="lm-toggle">
+          <button class="lm-toggle-btn active" id="lm-tab-squad" onclick="lmSetView('squad')" data-i18n="btn_squad">Squad</button>
+          <button class="lm-toggle-btn" id="lm-tab-stats" onclick="lmSetView('stats')" data-i18n="btn_stats">Stats</button>
+        </div>
       </div>
       <div class="lm-cols" id="lm-cols"></div>
-    </div>
-  </div>
-
-  <!-- Match Stats Modal -->
-  <div class="lm-overlay" id="sm-overlay" onclick="if(event.target===this)smClose()">
-    <div class="lm-sheet" id="sm-sheet">
-      <div class="lm-handle-wrap"><div class="lm-handle"></div></div>
-      <div class="lm-header">
-        <button class="lm-close-btn" onclick="smClose()">✕</button>
-        <div class="lm-score-line" id="sm-score-line"></div>
-        <div id="sm-status-line" style="margin-top:4px;font-size:0.75rem;color:var(--muted)"></div>
-      </div>
-      <div class="sm-body" id="sm-body"></div>
+      <div class="sm-body" id="lm-stats-view" style="display:none;"></div>
     </div>
   </div>
 
@@ -2722,7 +2710,7 @@ function renderTodayMatches() {
         <div class="ov-today-card-header">
           <span class="ov-card-title">${sub}</span>
         </div>
-        ${todays.map(m => ovMatchRow(m, true)).join('')}
+        ${todays.map(ovMatchRow).join('')}
       </div>`;
   } else {
     box.innerHTML = `<div class="ov-no-games">${t('ov_no_games_today')}</div>`;
@@ -6177,25 +6165,6 @@ function ovMatchRow(m, withButtons) {
   const liveClass = isLive ? ' is-live' : '';
   const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
 
-  // For today's live/finished matches: explicit Squad (left, default) + Stats (right)
-  // buttons instead of the whole row opening the squad modal.
-  const showBtns = withButtons && liveEv && (isLive || isPost);
-  if (showBtns) {
-    const hasSquad = liveEv.hasLineups;
-    const hasStats = !!(liveEv.stats && liveEv.stats.order && liveEv.stats.order.length);
-    const btns = `<div class="ov-match-btns">
-      <button class="ov-mbtn ov-mbtn-squad" ${hasSquad?`onclick="lmOpen('${liveEv.id}')"`:'disabled'}>${t('btn_squad')}</button>
-      <button class="ov-mbtn ov-mbtn-stats" ${hasStats?`onclick="smOpen('${liveEv.id}')"`:'disabled'}>${t('btn_stats')}</button>
-    </div>`;
-    return `<div class="ov-match-row${liveClass}">
-      <div class="ov-match-teams">
-        ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
-        <div class="ov-match-meta">${meta}</div>
-        ${btns}
-      </div>${right}
-    </div>`;
-  }
-
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
       ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
@@ -6209,6 +6178,14 @@ function lmOpen(eventId) {
   _lmCurrentEvent = eventId;
   document.getElementById('lm-overlay').classList.add('open');
   lmRender(eventId);
+  // Always open on the Squad view; show the Stats tab only if stats exist.
+  const ev = _liveEvents[eventId];
+  const hasStats = !!(ev && ev.stats && ev.stats.order && ev.stats.order.length);
+  const tabStats = document.getElementById('lm-tab-stats');
+  const toggle = document.getElementById('lm-toggle');
+  if (tabStats) tabStats.style.display = hasStats ? '' : 'none';
+  if (toggle) toggle.style.display = hasStats ? '' : 'none';
+  lmSetView('squad');
 }
 
 function lmClose() {
@@ -6216,31 +6193,32 @@ function lmClose() {
   _lmCurrentEvent = null;
 }
 
-// ── Match Stats Modal ──────────────────────────────────────────────────────────
-function smOpen(eventId) {
-  document.getElementById('sm-overlay').classList.add('open');
-  smRender(eventId);
+// ── In-modal Squad / Stats toggle ──────────────────────────────────────────────
+function lmSetView(view) {
+  const cols = document.getElementById('lm-cols');
+  const statsView = document.getElementById('lm-stats-view');
+  const tabSquad = document.getElementById('lm-tab-squad');
+  const tabStats = document.getElementById('lm-tab-stats');
+  if (view === 'stats') {
+    cols.style.display = 'none';
+    statsView.style.display = 'block';
+    tabSquad.classList.remove('active'); tabStats.classList.add('active');
+    lmRenderStats(_lmCurrentEvent);
+  } else {
+    cols.style.display = '';
+    statsView.style.display = 'none';
+    tabStats.classList.remove('active'); tabSquad.classList.add('active');
+  }
 }
-function smClose() {
-  document.getElementById('sm-overlay').classList.remove('open');
-}
-function smRender(eventId) {
+function lmRenderStats(eventId) {
   const ev = _liveEvents[eventId];
-  if (!ev) return;
-  const ht = ev.stateDesc?.toLowerCase().includes('half') && ev.clock === '';
-  const clockBadge = ev.state === 'in'
-    ? `<span class="lm-clock-badge"><span class="ov-live-dot"></span>${ht ? 'HT' : ev.clock}</span>`
-    : `<span style="font-size:0.75rem;color:var(--muted)">FT</span>`;
-  document.getElementById('sm-score-line').innerHTML =
-    `${ev.homeFlag} ${tTeam(ev.home)} <span class="lm-score-num">${ev.homeScore}–${ev.awayScore}</span> ${tTeam(ev.away)} ${ev.awayFlag} ${clockBadge}`;
-  document.getElementById('sm-status-line').textContent = t('stat_match_stats');
-
+  const box = document.getElementById('lm-stats-view');
+  if (!ev) { box.innerHTML = ''; return; }
   const s = ev.stats;
   if (!s || !s.order.length) {
-    document.getElementById('sm-body').innerHTML = `<div class="lm-no-lineup">${t('stat_none')}</div>`;
+    box.innerHTML = `<div class="lm-no-lineup">${t('stat_none')}</div>`;
     return;
   }
-  // For each stat: home value, label, away value, plus a proportional bar.
   const rows = s.order.map(o => {
     const hRaw = s.home[o.label] || '–';
     const aRaw = s.away[o.label] || '–';
@@ -6261,7 +6239,7 @@ function smRender(eventId) {
       </div>
     </div>`;
   }).join('');
-  document.getElementById('sm-body').innerHTML = `<div class="sm-stats-wrap">${rows}</div>`;
+  box.innerHTML = `<div class="sm-stats-wrap">${rows}</div>`;
 }
 
 
