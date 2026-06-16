@@ -4680,6 +4680,12 @@ function getTeamCurrentRound(team){
   if(played(r32))   return {label:t('round_r32'),cls:'round-r32'};
   return {label:t('round_group'),cls:'round-group'};
 }
+function roundDepth(cls){
+  // Higher = deeper in the tournament, for sorting the Predicted column by
+  // progression rather than alphabetically by label.
+  const order={'round-group':0,'round-r32':1,'round-r16':2,'round-qf':3,'round-sf':4,'round-bronze':4,'round-final':5};
+  return order[cls]!=null?order[cls]:0;
+}
 function getTeamPredRound(team){
   const b=buildPredBracket();
   const r32=R32_SEEDS.map(s=>s.matchNum);
@@ -4688,7 +4694,7 @@ function getTeamPredRound(team){
   const sf=SF_MATCHES.map(s=>s.matchNum);
   const inM=(list)=>list.some(mn=>{const m=b[mn];return m&&(m.home===team||m.away===team);});
   if(inM([104])) return {label:t('round_final'),cls:'round-final'};
-  if(inM([103])) return {label:t('round_3rd'),cls:'round-bronze'};
+  if(inM([103])) return {label:t('round_sf'),cls:'round-bronze'};
   if(inM(sf))    return {label:t('round_sf'),cls:'round-sf'};
   if(inM(qf))    return {label:t('round_qf'),cls:'round-qf'};
   if(inM(r16))   return {label:t('round_r16'),cls:'round-r16'};
@@ -4751,9 +4757,14 @@ function renderStatsTeams(){
     const pred=getTeamPredRound(team);
     return {name:team,flag:FLAGS[team]||'',gf:s.gf,ga:s.ga,yellow:s.yellow,red:s.red,
             curLabel:cur.label,curCls:cur.cls,predLabel:pred.label,predCls:pred.cls,
+            predDepth:roundDepth(pred.cls),
             nextOpp:getNextOpponent(team)};
   });
-  rows=sortBy(rows,sk.col,sk.dir,numCols.includes(sk.col));
+  if(sk.col==='predLabel'){
+    rows=sortBy(rows,'predDepth',sk.dir,true);
+  } else {
+    rows=sortBy(rows,sk.col,sk.dir,numCols.includes(sk.col));
+  }
   const th=(col,lbl,isNum)=>thH("teams",sk,col,lbl,isNum);
   let html='<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:0.8rem;color:var(--muted);margin-bottom:10px;padding:2px 0;">👆 '+t('tap_team_hint')+'</div><div class="stats-table-wrap"><table class="stats-tbl"><thead><tr>'+
     th('name','Team',false)+th('gf','GF',true)+th('ga','GA',true)+
