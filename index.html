@@ -1168,6 +1168,14 @@ body.light-mode .stats-tbl th { background:var(--bg); }
         <button class="spinner-btn" onclick="adjustScore('away',-1)">▼</button>
       </div>
     </div>
+    <!-- Goal scorers (locked/completed matches) -->
+    <div id="modal-scorers-row" style="display:none; margin-bottom:18px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">⚽ ${''}<span data-i18n="stat_goals">Goals</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div id="modal-scorers-home" style="font-family:'Barlow Condensed',sans-serif;font-size:0.84rem;color:var(--text);line-height:1.6;"></div>
+        <div id="modal-scorers-away" style="font-family:'Barlow Condensed',sans-serif;font-size:0.84rem;color:var(--text);line-height:1.6;text-align:right;"></div>
+      </div>
+    </div>
     <!-- Cards (group matches only) -->
     <div id="modal-cards-row" style="display:none; margin-bottom:20px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;text-align:center;">Cards</div>
@@ -2447,6 +2455,16 @@ function openGroupMatch(group,idx) {
   document.getElementById('modal-homeRed').textContent=modalCards.homeRed;
   document.getElementById('modal-awayYellow').textContent=modalCards.awayYellow;
   document.getElementById('modal-awayRed').textContent=modalCards.awayRed;
+  // Goal scorers (shown for completed matches that have scorer data)
+  const scRow=document.getElementById('modal-scorers-row');
+  const hsc=m.homeScorers||[], asc=m.awayScorers||[];
+  if(isLocked && (hsc.length||asc.length)){
+    document.getElementById('modal-scorers-home').innerHTML = hsc.length?hsc.map(s=>`<div>${s}</div>`).join(''):'<div style="color:var(--muted)">—</div>';
+    document.getElementById('modal-scorers-away').innerHTML = asc.length?asc.map(s=>`<div>${s}</div>`).join(''):'<div style="color:var(--muted)">—</div>';
+    scRow.style.display='';
+  } else {
+    scRow.style.display='none';
+  }
   // Locked state: official ESPN result, read-only
   const lockNote=document.getElementById('modal-lock-note');
   const saveBtn=document.getElementById('modal-save-btn');
@@ -5323,6 +5341,7 @@ const STRINGS = {
   stat_match_stats: {en:'Match stats',  es:'Estadísticas del partido'},
   stat_none:        {en:'No stats available yet', es:'Aún no hay estadísticas'},
   stat_possession:  {en:'Possession',   es:'Posesión'},
+  stat_goals:       {en:'Goals',        es:'Goles'},
   stat_shots:       {en:'Shots',        es:'Tiros'},
   stat_shots_on:    {en:'Shots on target', es:'Tiros a puerta'},
   stat_passes:      {en:'Passes',       es:'Pases'},
@@ -5767,16 +5786,23 @@ async function globalRefresh(){
             });
             const teamCards={};
             Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
+            const matchScorers=[];  // {name, min, og, team}
 
             for(const ev of (sj.keyEvents||[])){
               const tt=(ev.type?.text||ev.type?.id||'').toLowerCase();
               const parts=ev.participants||[];
               const evTeam=teamById[ev.team?.id]||'';
-              if(ev.scoringPlay===true && !(tt.includes('own goal')||ev.ownGoal===true)){
+              const min=ev.clock?.displayValue||'';
+              if(ev.scoringPlay===true){
                 const scorer=parts[0];
                 const pName=scorer?.athlete?.displayName||scorer?.athlete?.fullName||scorer?.athlete?.shortName;
-                const tName=teamById[scorer?.team?.id]||evTeam;
-                if(pName&&tName) addStatToPlayer(pName,tName,1,0,0,newPlayers);
+                const scorerTeam=teamById[scorer?.team?.id]||evTeam;
+                const isOG=tt.includes('own goal')||ev.ownGoal===true;
+                const isPen=ev.penaltyKick===true||tt.includes('penalty');
+                if(pName){
+                  matchScorers.push({ name:pName, min, og:isOG, pen:isPen, scorerTeam });
+                  if(!isOG) addStatToPlayer(pName,scorerTeam,1,0,0,newPlayers);
+                }
               }
               if(tt.includes('yellow')){
                 for(const a of parts){
@@ -5805,6 +5831,16 @@ async function globalRefresh(){
                 if(namesMatch(m.home,hNm)&&namesMatch(m.away,aNm)){
                   if(teamCards[hNm]){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
                   if(teamCards[aNm]){m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
+                  // Attribute scorers to home/away. Own goals count for the OPPOSING team.
+                  const homeScorers=[], awayScorers=[];
+                  matchScorers.forEach(s=>{
+                    const scoredForHome = namesMatch(s.scorerTeam, hNm);
+                    // benefiting side: own goal flips it
+                    const benefitsHome = s.og ? !scoredForHome : scoredForHome;
+                    const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
+                    (benefitsHome?homeScorers:awayScorers).push(label);
+                  });
+                  m.homeScorers=homeScorers; m.awayScorers=awayScorers;
                   done=true;break;
                 }
               }
