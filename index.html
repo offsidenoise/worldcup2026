@@ -834,11 +834,11 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-score-live { font-size:1rem; font-weight:700; color:#e63946; }
 
 /* Live match modal */
-.lm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7);
+.lm-overlay { position:fixed; left:0; right:0; bottom:0; top:130px; background:rgba(0,0,0,0.7);
   z-index:3000; display:none; align-items:flex-end; }
 .lm-overlay.open { display:flex; }
 .lm-sheet { background:var(--card); border-radius:16px 16px 0 0;
-  width:100%; max-height:92vh; overflow-y:auto;
+  width:100%; max-height:74vh; overflow-y:auto;
   padding-bottom:env(safe-area-inset-bottom,16px); }
 .lm-handle-wrap { display:flex; justify-content:center; padding:10px 0 6px; }
 .lm-handle { width:36px; height:4px; border-radius:2px; background:var(--border); }
