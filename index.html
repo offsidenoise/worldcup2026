@@ -5742,67 +5742,78 @@ async function globalRefresh(){
       }catch(e){}
     }
     if(completed.length>0){
-      // Parse goals & cards directly from scoreboard competition.details[] —
-      // ESPN puts events there with boolean flags + athletesInvolved[]
+      // Per-player goals & cards. ESPN's SCOREBOARD feed usually omits the detailed
+      // competition.details[] (those live in the per-match summary), so relying on the
+      // scoreboard alone left every player at 0. We fetch each completed match's summary
+      // and aggregate from keyEvents[], which reliably carries athletesInvolved + flags.
       statsData.players.forEach(p=>{p.goals=0;p.yellows=0;p.reds=0;p.games=0;});
       const newPlayers={};
-      for(const event of completed){
-        try{
-          const comp=event.competitions?.[0]; if(!comp) continue;
-          const competitors=comp.competitors||[];
-          // Map ESPN team id → normalized country name
-          const teamById={};
-          competitors.forEach(c=>{ teamById[c.team?.id]=normalizeESPNTeam(c.team?.displayName||c.team?.name||''); });
 
-          // Per-team card tallies for team-level stats
-          const teamCards={};
-          competitors.forEach(c=>{ const nm=teamById[c.team?.id]; if(nm) teamCards[nm]={y:0,r:0}; });
+      // Helper: credit one player from a summary keyEvent participant set.
+      async function aggregateFromSummaries(){
+        for(const event of completed){
+          try{
+            const sr=await espnFetch(BASE+'/summary?event='+event.id);
+            if(!sr.ok) continue;
+            const sj=await sr.json();
+            // Team id → normalized country
+            const teamById={};
+            (sj.boxscore?.teams||sj.header?.competitions?.[0]?.competitors||[]).forEach(c=>{
+              const tm=c.team||c; teamById[tm?.id]=normalizeESPNTeam(tm?.displayName||tm?.name||'');
+            });
+            // header competitors as fallback for team names
+            (sj.header?.competitions?.[0]?.competitors||[]).forEach(c=>{
+              if(c.team?.id && !teamById[c.team.id]) teamById[c.team.id]=normalizeESPNTeam(c.team.displayName||c.team.name||'');
+            });
+            const teamCards={};
+            Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
 
-          (comp.details||[]).forEach(d=>{
-            const country=teamById[d.team?.id]||'';
-            const athletes=d.athletesInvolved||[];
-            if(d.scoringPlay===true && !d.ownGoal){
-              // Goal — credit only the scorer (athletesInvolved[0]). Real ESPN data always
-              // populates athletesInvolved; covers "Goal", "Goal - Header", "Penalty - Scored".
-              const scorer=athletes[0];
-              const pName=scorer?.displayName||scorer?.fullName||scorer?.shortName;
-              const tName=teamById[scorer?.team?.id]||country;
-              if(pName&&tName) addStatToPlayer(pName,tName,1,0,0,newPlayers);
-            }
-            if(d.yellowCard===true){
-              athletes.forEach(a=>{
-                const pName=a.displayName||a.fullName||a.shortName;
-                const tName=teamById[a.team?.id]||country;
-                if(pName&&tName){ addStatToPlayer(pName,tName,0,1,0,newPlayers); if(teamCards[tName])teamCards[tName].y++; }
-              });
-            }
-            if(d.redCard===true){
-              athletes.forEach(a=>{
-                const pName=a.displayName||a.fullName||a.shortName;
-                const tName=teamById[a.team?.id]||country;
-                if(pName&&tName){ addStatToPlayer(pName,tName,0,0,1,newPlayers); if(teamCards[tName])teamCards[tName].r++; }
-              });
-            }
-          });
-
-          // Write team card totals to the matched group match object
-          const homeComp=competitors.find(c=>c.homeAway==='home')||competitors[0];
-          const awayComp=competitors.find(c=>c.homeAway==='away')||competitors[1];
-          const hNm=teamById[homeComp?.team?.id], aNm=teamById[awayComp?.team?.id];
-          for(const g of GROUP_KEYS){
-            let done=false;
-            for(const m of state.groupMatches[g]){
-              if(m.homeScore===null) continue;
-              if(namesMatch(m.home,hNm)&&namesMatch(m.away,aNm)){
-                if(teamCards[hNm]){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
-                if(teamCards[aNm]){m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
-                done=true;break;
+            for(const ev of (sj.keyEvents||[])){
+              const tt=(ev.type?.text||ev.type?.id||'').toLowerCase();
+              const parts=ev.participants||[];
+              const evTeam=teamById[ev.team?.id]||'';
+              if(ev.scoringPlay===true && !(tt.includes('own goal')||ev.ownGoal===true)){
+                const scorer=parts[0];
+                const pName=scorer?.athlete?.displayName||scorer?.athlete?.fullName||scorer?.athlete?.shortName;
+                const tName=teamById[scorer?.team?.id]||evTeam;
+                if(pName&&tName) addStatToPlayer(pName,tName,1,0,0,newPlayers);
+              }
+              if(tt.includes('yellow')){
+                for(const a of parts){
+                  const pName=a.athlete?.displayName||a.athlete?.fullName||a.athlete?.shortName;
+                  const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;
+                  if(pName&&tName){ addStatToPlayer(pName,tName,0,1,0,newPlayers); if(teamCards[tName])teamCards[tName].y++; }
+                }
+              }
+              if(tt.includes('red card')||ev.redCard===true){
+                for(const a of parts){
+                  const pName=a.athlete?.displayName||a.athlete?.fullName||a.athlete?.shortName;
+                  const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;
+                  if(pName&&tName){ addStatToPlayer(pName,tName,0,0,1,newPlayers); if(teamCards[tName])teamCards[tName].r++; }
+                }
               }
             }
-            if(done)break;
-          }
-        }catch(e){}
+            // Write team card totals to the matched group match
+            const comps=sj.header?.competitions?.[0]?.competitors||[];
+            const hC=comps.find(c=>c.homeAway==='home')||comps[0];
+            const aC=comps.find(c=>c.homeAway==='away')||comps[1];
+            const hNm=teamById[hC?.team?.id], aNm=teamById[aC?.team?.id];
+            for(const g of GROUP_KEYS){
+              let done=false;
+              for(const m of state.groupMatches[g]){
+                if(m.homeScore===null) continue;
+                if(namesMatch(m.home,hNm)&&namesMatch(m.away,aNm)){
+                  if(teamCards[hNm]){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
+                  if(teamCards[aNm]){m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
+                  done=true;break;
+                }
+              }
+              if(done)break;
+            }
+          }catch(e){}
+        }
       }
+      await aggregateFromSummaries();
       Object.values(newPlayers).forEach(p=>{if(!statsData.players.find(sp=>sp.name===p.name&&sp.country===p.country))statsData.players.push(p);});
       // Credit games played from ESPN's aggregated per-athlete appearances.
       // Match each player by accent-insensitive name + country, with substring fallback.
@@ -6666,14 +6677,14 @@ function openSquadModal(team) {
   if(coachStr) h += `<div style="font-family:'${BC}',sans-serif;font-size:0.85rem;color:var(--muted);padding:12px 16px 4px;">${t('coach')}: <span style="color:var(--text);">${coachStr}</span></div>`;
 
   h += `<table style="width:100%;border-collapse:collapse;font-family:'${BC}',sans-serif;">
-    <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="text-align:left;padding:6px 8px 6px 12px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${t('th_player')}</th>
-      <th style="padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;">${t('th_pos')}</th>
-      <th style="padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;">${t('th_age')}</th>
-      <th style="text-align:left;padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${t('th_club')}</th>
-      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Goals">⚽</th>
-      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Yellow cards">🟨</th>
-      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Red cards">🟥</th>
+    <thead><tr>
+      <th style="text-align:left;padding:8px 8px 8px 12px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);">${t('th_player')}</th>
+      <th style="padding:8px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);">${t('th_pos')}</th>
+      <th style="padding:8px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);">${t('th_age')}</th>
+      <th style="text-align:left;padding:8px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);">${t('th_club')}</th>
+      <th style="padding:8px 3px;font-size:0.78rem;text-align:center;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);" title="Goals">⚽</th>
+      <th style="padding:8px 3px;font-size:0.78rem;text-align:center;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);" title="Yellow cards">🟨</th>
+      <th style="padding:8px 3px;font-size:0.78rem;text-align:center;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--border);" title="Red cards">🟥</th>
     </tr></thead><tbody>`;
 
   let lastPos = '';
