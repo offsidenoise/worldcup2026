@@ -955,7 +955,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
 <header>
   <div class="header-inner">
-    <div class="logo"><img class="header-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><span id="logo-title">World Cup</span> <span>2026</span></div>
+    <div class="logo" id="header-logo-tap"><img class="header-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><span id="logo-title">World Cup</span> <span>2026</span></div>
     <div class="header-right">
       <div class="refresh-wrap">
         <button class="header-refresh-btn" id="header-refresh-btn" onclick="globalRefresh()" title="Refresh live scores">⟳</button>
@@ -5163,42 +5163,53 @@ function namesMatch(a, b) {
 function normalizeESPNTeam(name) {
   const MAP = {
     'mexico':'Mexico','méxico':'Mexico',
-    'south africa':'South Africa',
-    'south korea':'South Korea','korea republic':'South Korea','republic of korea':'South Korea',
-    'czechia':'Czechia','czech republic':'Czechia',
+    'south africa':'South Africa','rsa':'South Africa',
+    'south korea':'South Korea','korea republic':'South Korea','republic of korea':'South Korea','korea, republic of':'South Korea','kor':'South Korea',
+    'czechia':'Czechia','czech republic':'Czechia','czech rep':'Czechia',
     'canada':'Canada',
-    'bosnia':'Bosnia','bosnia & herzegovina':'Bosnia','bosnia and herzegovina':'Bosnia','bosnia-herzegovina':'Bosnia','bosnia herzegovina':'Bosnia',
-    'qatar':'Qatar','switzerland':'Switzerland','brazil':'Brazil','morocco':'Morocco',
-    'haiti':'Haiti','scotland':'Scotland',
-    'united states':'USA','usa':'USA','us':'USA',
-    'paraguay':'Paraguay','australia':'Australia',
-    'turkey':'Turkey','türkiye':'Turkey',
-    'germany':'Germany',
+    'bosnia':'Bosnia','bosnia & herzegovina':'Bosnia','bosnia and herzegovina':'Bosnia','bosnia-herzegovina':'Bosnia','bosnia herzegovina':'Bosnia','bih':'Bosnia',
+    'qatar':'Qatar','switzerland':'Switzerland','suisse':'Switzerland','brazil':'Brazil','brasil':'Brazil','morocco':'Morocco','maroc':'Morocco',
+    'haiti':'Haiti','haïti':'Haiti','scotland':'Scotland',
+    'united states':'USA','united states of america':'USA','usa':'USA','us':'USA','usmnt':'USA',
+    'paraguay':'Paraguay','australia':'Australia','socceroos':'Australia',
+    'turkey':'Turkey','türkiye':'Turkey','turkiye':'Turkey',
+    'germany':'Germany','deutschland':'Germany',
     'curacao':'Curaçao','curaçao':'Curaçao',
-    "ivory coast":"Ivory Coast","côte d'ivoire":"Ivory Coast","cote d'ivoire":"Ivory Coast",
-    'ecuador':'Ecuador','netherlands':'Netherlands','japan':'Japan','sweden':'Sweden','tunisia':'Tunisia',
+    "ivory coast":"Ivory Coast","côte d'ivoire":"Ivory Coast","cote d'ivoire":"Ivory Coast","cote divoire":"Ivory Coast","civ":"Ivory Coast",
+    'ecuador':'Ecuador','netherlands':'Netherlands','holland':'Netherlands','japan':'Japan','sweden':'Sweden','tunisia':'Tunisia',
     'belgium':'Belgium','egypt':'Egypt',
-    'iran':'IR Iran','ir iran':'IR Iran','islamic republic of iran':'IR Iran',
-    'new zealand':'New Zealand',
-    'spain':'Spain',
-    'cape verde':'Cabo Verde','cabo verde':'Cabo Verde',
-    'saudi arabia':'Saudi Arabia',
-    'uruguay':'Uruguay','france':'France','senegal':'Senegal','iraq':'Iraq','norway':'Norway',
-    'argentina':'Argentina','algeria':'Algeria','austria':'Austria','jordan':'Jordan',
+    'iran':'IR Iran','ir iran':'IR Iran','islamic republic of iran':'IR Iran','iran (ir)':'IR Iran',
+    'new zealand':'New Zealand','all whites':'New Zealand',
+    'spain':'Spain','españa':'Spain','espana':'Spain',
+    'cape verde':'Cabo Verde','cabo verde':'Cabo Verde','cape verde islands':'Cabo Verde',
+    'saudi arabia':'Saudi Arabia','ksa':'Saudi Arabia','saudi':'Saudi Arabia',
+    'uruguay':'Uruguay','france':'France','senegal':'Senegal','sénégal':'Senegal','iraq':'Iraq','norway':'Norway','norge':'Norway',
+    'argentina':'Argentina','algeria':'Algeria','algérie':'Algeria','austria':'Austria','österreich':'Austria','jordan':'Jordan',
     'portugal':'Portugal',
-    'dr congo':'DR Congo','congo dr':'DR Congo','democratic republic of congo':'DR Congo',
-    'congo, the democratic republic of the':'DR Congo',
-    'uzbekistan':'Uzbekistan','colombia':'Colombia','england':'England','croatia':'Croatia',
-    'ghana':'Ghana','panama':'Panama',
+    'dr congo':'DR Congo','congo dr':'DR Congo','democratic republic of congo':'DR Congo','democratic republic of the congo':'DR Congo','congo, the democratic republic of the':'DR Congo','dr-congo':'DR Congo','rd congo':'DR Congo',
+    'uzbekistan':'Uzbekistan','colombia':'Colombia','england':'England','croatia':'Croatia','hrvatska':'Croatia',
+    'ghana':'Ghana','panama':'Panama','panamá':'Panama',
   };
+  if (!name) return name;
   // Normalize accents then look up
   const key = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
   const keyAccent = name.toLowerCase().trim();
   if(MAP[keyAccent]) return MAP[keyAccent];
   if(MAP[key]) return MAP[key];
-  // Fallback: try hyphen/ampersand normalized to spaces
-  const key2 = key.replace(/[-&]/g,' ').replace(/\s+/g,' ').trim();
+  // Fallback: try hyphen/ampersand/punctuation normalized to spaces
+  const key2 = key.replace(/['.&-]/g,' ').replace(/\s+/g,' ').trim();
   if(MAP[key2]) return MAP[key2];
+  // Last resort: substring match against canonical names so an unseen variant
+  // ("Korea Rep.", "Bosnia-Herz.") still resolves instead of silently failing.
+  const CANON = ['Mexico','South Africa','South Korea','Czechia','Canada','Bosnia','Qatar','Switzerland','Brazil','Morocco','Haiti','Scotland','USA','Paraguay','Australia','Turkey','Germany','Curaçao','Ivory Coast','Ecuador','Netherlands','Japan','Sweden','Tunisia','Belgium','Egypt','IR Iran','New Zealand','Spain','Cabo Verde','Saudi Arabia','Uruguay','France','Senegal','Iraq','Norway','Argentina','Algeria','Austria','Jordan','Portugal','DR Congo','Uzbekistan','Colombia','England','Croatia','Ghana','Panama'];
+  // Also handle a few abbreviated forms that share a stem.
+  const STEM = {'korea':'South Korea','cote':"Ivory Coast",'ivoire':'Ivory Coast','czech':'Czechia','congo':'DR Congo','verde':'Cabo Verde'};
+  for (const w of key2.split(' ')) { if (STEM[w]) return STEM[w]; }
+  for (const c of CANON) {
+    const ck = c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if (key2 === ck || key2.includes(ck) || ck.includes(key2)) return c;
+  }
+  if (typeof _liveLogUnmatchedTeam === 'function') _liveLogUnmatchedTeam(name);
   return name;
 }
 
@@ -6084,14 +6095,86 @@ function _liveParseStats(sumJson) {
   return order.length ? { home, away, order } : null;
 }
 
+// ── Diagnostics: track team names ESPN sent that we couldn't map ──────────────
+window._liveUnmatchedTeams = window._liveUnmatchedTeams || {};
+function _liveLogUnmatchedTeam(name) {
+  if (!name) return;
+  window._liveUnmatchedTeams[name] = (window._liveUnmatchedTeams[name] || 0) + 1;
+}
+function showDiagnostics() {
+  const lines = [];
+  lines.push('=== LIVE EVENTS (' + Object.keys(_liveEvents).length + ') ===');
+  Object.values(_liveEvents).forEach(ev => {
+    lines.push(`${ev.home} vs ${ev.away}  [${ev.state}]  ${ev.homeScore}-${ev.awayScore}  ${ev.clock||''}  lineups:${ev.hasLineups?'Y':'N'} stats:${ev.stats?'Y':'N'}`);
+  });
+  lines.push('');
+  lines.push('=== TODAY FIXTURES → MATCH? ===');
+  try {
+    const today = ovGetAllFixtures().filter(f => {
+      const t = new Date().toLocaleDateString('en-CA');
+      return f.date === t;
+    });
+    today.forEach(f => {
+      let matched = null;
+      for (const ev of Object.values(_liveEvents)) {
+        if ((namesMatch(f.home,ev.home)&&namesMatch(f.away,ev.away)) ||
+            (namesMatch(f.home,ev.away)&&namesMatch(f.away,ev.home))) { matched = ev; break; }
+      }
+      lines.push(`${f.home} vs ${f.away}  →  ${matched ? 'MATCHED ('+matched.state+')' : '*** NO MATCH ***'}`);
+    });
+  } catch(e) { lines.push('(fixture scan error: '+e.message+')'); }
+  lines.push('');
+  const unmatched = Object.keys(window._liveUnmatchedTeams||{});
+  lines.push('=== UNMATCHED ESPN NAMES (' + unmatched.length + ') ===');
+  if (unmatched.length) unmatched.forEach(n => lines.push(`"${n}"  (×${window._liveUnmatchedTeams[n]})`));
+  else lines.push('(none — all team names resolved)');
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.onclick = () => overlay.remove();
+  const box = document.createElement('pre');
+  box.style.cssText = "background:#0e141d;color:#cde;border:1px solid #2a3441;border-radius:10px;padding:16px;max-width:100%;max-height:80vh;overflow:auto;font-size:11px;line-height:1.5;white-space:pre-wrap;font-family:monospace;";
+  box.textContent = lines.join('\n') + '\n\n(tap anywhere to close)';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+// Long-press (700ms) on the header logo opens the live-data diagnostics panel.
+(function(){
+  document.addEventListener('DOMContentLoaded', () => {
+    const logo = document.getElementById('header-logo-tap');
+    if (!logo) return;
+    let timer = null;
+    const start = () => { timer = setTimeout(() => { showDiagnostics(); }, 700); };
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    logo.addEventListener('touchstart', start, {passive:true});
+    logo.addEventListener('touchend', cancel);
+    logo.addEventListener('touchmove', cancel, {passive:true});
+    logo.addEventListener('mousedown', start);
+    logo.addEventListener('mouseup', cancel);
+    logo.addEventListener('mouseleave', cancel);
+  });
+})();
+
 async function _liveFetchAll(espnFetch) {
   const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
-  const todayISO = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
+  // Query a 3-day window (yesterday→tomorrow). A late local kickoff (e.g. 11pm
+  // Pacific) falls on the NEXT calendar day in UTC, which a single-day query
+  // would miss. The window guarantees late-night local matches are captured.
+  const iso = d => d.toLocaleDateString('en-CA').replace(/-/g, '');
+  const now = new Date();
+  const dates = [
+    iso(new Date(now.getTime() - 86400000)),
+    iso(now),
+    iso(new Date(now.getTime() + 86400000)),
+  ];
   let events = [];
-  try {
-    const r = await espnFetch(BASE + '/scoreboard?dates=' + todayISO + '&limit=20');
-    if (r.ok) { const d = await r.json(); events = d.events || []; }
-  } catch(e) {}
+  for (const dt of dates) {
+    try {
+      const r = await espnFetch(BASE + '/scoreboard?dates=' + dt + '&limit=30');
+      if (r.ok) { const d = await r.json(); (d.events || []).forEach(e => { if (!events.find(x => x.id === e.id)) events.push(e); }); }
+    } catch(e) {}
+  }
 
   // For each in-progress or pre-match event, fetch summary
   const relevant = events.filter(e => {
