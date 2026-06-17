@@ -6110,7 +6110,6 @@ async function _liveFetchAll(espnFetch) {
   for (let i = 0; i < relevant.length; i++) {
     const event = relevant[i];
     const sumJson = summaries[i].status === 'fulfilled' ? summaries[i].value : null;
-    if (!sumJson) continue;
 
     const comp = event.competitions?.[0];
     if (!comp) continue;
@@ -6126,10 +6125,13 @@ async function _liveFetchAll(espnFetch) {
     const period  = event.status?.period || 1;
     const stateDesc = event.status?.type?.description || '';
 
-    const homeLineup = _liveParseLineup(sumJson, homeName);
-    const awayLineup = _liveParseLineup(sumJson, awayName);
-    const evts = _liveParseEvents(sumJson);
-    const stats = _liveParseStats(sumJson);
+    // Summary may be empty for a just-kicked-off match (lineups/events not posted
+    // yet). Still register the event from scoreboard data so the row reflects the
+    // live state/score immediately; lineups & stats fill in on a later poll.
+    const homeLineup = sumJson ? _liveParseLineup(sumJson, homeName) : [];
+    const awayLineup = sumJson ? _liveParseLineup(sumJson, awayName) : [];
+    const evts = sumJson ? _liveParseEvents(sumJson) : { goals:{}, ownGoals:{}, yellows:{}, reds:{}, subs:[] };
+    const stats = sumJson ? _liveParseStats(sumJson) : null;
 
     _liveEvents[event.id] = {
       id: event.id,
@@ -6223,9 +6225,9 @@ function ovMatchRow(m, withButtons) {
   // Find live event for this match
   let liveEv = null;
   for (const ev of Object.values(_liveEvents)) {
-    if (namesMatch(m.home, ev.home) && namesMatch(m.away, ev.away)) {
-      liveEv = ev; break;
-    }
+    const direct = namesMatch(m.home, ev.home) && namesMatch(m.away, ev.away);
+    const reversed = namesMatch(m.home, ev.away) && namesMatch(m.away, ev.home);
+    if (direct || reversed) { liveEv = ev; break; }
   }
 
   const dtStr = m.kickoffDt
