@@ -1170,7 +1170,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     </div>
     <!-- Goal scorers (locked/completed matches) -->
     <div id="modal-scorers-row" style="display:none; margin-bottom:18px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">⚽ ${''}<span data-i18n="stat_goals">Goals</span></div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">⚽ <span data-i18n="stat_goals">Goals</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div id="modal-scorers-home" style="font-family:'Barlow Condensed',sans-serif;font-size:0.84rem;color:var(--text);line-height:1.6;"></div>
         <div id="modal-scorers-away" style="font-family:'Barlow Condensed',sans-serif;font-size:0.84rem;color:var(--text);line-height:1.6;text-align:right;"></div>
@@ -1178,7 +1178,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     </div>
     <!-- Cards (group matches only) -->
     <div id="modal-cards-row" style="display:none; margin-bottom:20px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;text-align:center;">Cards</div>
+      <div data-i18n="modal_cards" style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;text-align:center;">Cards</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div style="display:flex;flex-direction:column;gap:6px;">
           <div id="modal-cards-home-label" style="font-family:'Barlow Condensed',sans-serif;font-size:0.8rem;color:var(--text);text-align:center;"></div>
@@ -1217,9 +1217,9 @@ body.light-mode .stats-tbl th { background:var(--bg); }
       </div>
     </div>
     <div class="modal-actions">
-      <button id="modal-clear-btn" class="btn-clear" onclick="clearMatch()">Clear</button>
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" id="modal-save-btn" onclick="saveMatch()">Save</button>
+      <button id="modal-clear-btn" class="btn-clear" data-i18n="btn_clear" onclick="clearMatch()">Clear</button>
+      <button class="btn-secondary" data-i18n="btn_cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modal-save-btn" data-i18n="btn_save" onclick="saveMatch()">Save</button>
     </div>
   </div>
 </div>
@@ -2443,14 +2443,14 @@ function openGroupMatch(group,idx) {
   currentMatchCtx={type:'group',group,idx,locked:isLocked};
   modalScores={home:m.homeScore??0,away:m.awayScore??0};
   modalCards={homeYellow:m.homeYellow??0,homeRed:m.homeRed??0,awayYellow:m.awayYellow??0,awayRed:m.awayRed??0};
-  document.getElementById('modal-home').textContent=m.home;
-  document.getElementById('modal-away').textContent=m.away;
+  document.getElementById('modal-home').textContent=tTeam(m.home);
+  document.getElementById('modal-away').textContent=tTeam(m.away);
   document.getElementById('modal-fixture-info').textContent=fix.date?`${fix.date}  ·  ${fix.venue}`:'';
   document.getElementById('score-home').textContent=modalScores.home;
   document.getElementById('score-away').textContent=modalScores.away;
   document.getElementById('modal-cards-row').style.display='';
-  document.getElementById('modal-cards-home-label').textContent=m.home;
-  document.getElementById('modal-cards-away-label').textContent=m.away;
+  document.getElementById('modal-cards-home-label').textContent=tTeam(m.home);
+  document.getElementById('modal-cards-away-label').textContent=tTeam(m.away);
   document.getElementById('modal-homeYellow').textContent=modalCards.homeYellow;
   document.getElementById('modal-homeRed').textContent=modalCards.homeRed;
   document.getElementById('modal-awayYellow').textContent=modalCards.awayYellow;
@@ -2488,8 +2488,8 @@ function openKOMatch(matchNum) {
   const fix=KO_FIXTURES[matchNum]||{};
   currentMatchCtx={type:'knockout',matchNum};
   modalScores={home:m.homeScore??0,away:m.awayScore??0};
-  document.getElementById('modal-home').textContent=home||'TBD';
-  document.getElementById('modal-away').textContent=away||'TBD';
+  document.getElementById('modal-home').textContent=tTeam(home)||'TBD';
+  document.getElementById('modal-away').textContent=tTeam(away)||'TBD';
   document.getElementById('modal-fixture-info').textContent=fix.date?`${fix.label}  ·  ${fix.date}  ·  ${fix.venue}`:'';
   document.getElementById('score-home').textContent=modalScores.home;
   document.getElementById('score-away').textContent=modalScores.away;
@@ -5342,6 +5342,10 @@ const STRINGS = {
   stat_none:        {en:'No stats available yet', es:'Aún no hay estadísticas'},
   stat_possession:  {en:'Possession',   es:'Posesión'},
   stat_goals:       {en:'Goals',        es:'Goles'},
+  modal_cards:      {en:'Cards',        es:'Tarjetas'},
+  btn_clear:        {en:'Clear',        es:'Borrar'},
+  btn_cancel:       {en:'Cancel',       es:'Cancelar'},
+  btn_save:         {en:'Save',         es:'Guardar'},
   stat_shots:       {en:'Shots',        es:'Tiros'},
   stat_shots_on:    {en:'Shots on target', es:'Tiros a puerta'},
   stat_passes:      {en:'Passes',       es:'Pases'},
