@@ -332,6 +332,11 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 /* MODAL */
 .modal-overlay { display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.8); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
 .modal-overlay.open { display:flex; }
+/* Squad modal as a bottom sheet (matches lineup/upcoming modals) */
+.squad-sheet-overlay { align-items:flex-end !important; justify-content:center; }
+.squad-sheet { background:var(--card); border-radius:16px 16px 0 0; width:100%; max-width:480px;
+  max-height:72vh; display:flex; flex-direction:column; padding:0; overflow:hidden;
+  padding-bottom:env(safe-area-inset-bottom,16px); }
 .modal { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:28px; width:90%; max-width:380px; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
 .modal-title { font-family:'Bebas Neue',sans-serif; font-size:1.1rem; color:var(--accent); letter-spacing:2px; margin-bottom:4px; text-align:center; }
 .modal-fixture-info { font-family:'Barlow Condensed',sans-serif; font-size:0.75rem; color:var(--muted); text-align:center; margin-bottom:18px; }
@@ -698,7 +703,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 }
 .ov-modal-overlay.open { opacity:1; pointer-events:all; }
 .ov-modal-sheet {
-  width:100%; max-width:430px; max-height:80vh; background:var(--card2,#161e28);
+  width:100%; max-width:430px; max-height:72vh; background:var(--card2,#161e28);
   border-radius:16px 16px 0 0; border:1px solid var(--border); border-bottom:none;
   overflow:hidden; display:flex; flex-direction:column;
   transform:translateY(100%); transition:transform 0.28s cubic-bezier(0.32,0.72,0,1);
@@ -834,16 +839,14 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-score-live { font-size:1rem; font-weight:700; color:#e63946; }
 
 /* Live match modal */
-.lm-overlay { position:fixed; inset:0; background:transparent;
-  z-index:3000; display:none; align-items:flex-end; pointer-events:none; }
+.lm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72);
+  z-index:3000; display:none; align-items:flex-end; justify-content:center; }
 .lm-overlay.open { display:flex; }
-.lm-overlay.open::before { content:''; position:absolute; inset:0;
-  background:rgba(0,0,0,0.7); pointer-events:none; }
 .lm-sheet { position:relative; background:var(--card); border-radius:16px 16px 0 0;
-  width:100%; max-height:74vh; overflow-y:auto; pointer-events:auto;
+  width:100%; max-width:430px; max-height:72vh; overflow-y:auto;
   padding-bottom:env(safe-area-inset-bottom,16px); }
-.lm-handle-wrap { display:flex; justify-content:center; padding:10px 0 6px; }
-.lm-handle { width:36px; height:4px; border-radius:2px; background:var(--border); }
+.lm-handle-wrap { display:flex; justify-content:center; padding:12px 0 6px; cursor:pointer; touch-action:none; }
+.lm-handle { width:40px; height:5px; border-radius:3px; background:rgba(255,255,255,0.22); }
 .lm-header { padding:4px 16px 12px; border-bottom:1px solid var(--border); }
 .lm-score-line { font-family:'Bebas Neue',sans-serif; font-size:1.3rem;
   display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -917,7 +920,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   z-index:4000; display:none; align-items:flex-end; }
 .pm-overlay.open { display:flex; }
 .pm-sheet { background:var(--card); border-radius:16px 16px 0 0;
-  width:100%; max-height:80vh; overflow-y:auto;
+  width:100%; max-height:72vh; overflow-y:auto;
   padding-bottom:env(safe-area-inset-bottom,16px); }
 .pm-handle-wrap { display:flex; justify-content:center; padding:10px 0 4px; }
 .pm-handle { width:36px; height:4px; border-radius:2px; background:var(--border); }
@@ -1115,7 +1118,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   <!-- Live Match Modal -->
   <div class="lm-overlay" id="lm-overlay" onclick="if(event.target===this)lmClose()">
     <div class="lm-sheet" id="lm-sheet">
-      <div class="lm-handle-wrap"><div class="lm-handle"></div></div>
+      <div class="lm-handle-wrap" id="lm-handle-wrap"><div class="lm-handle"></div></div>
       <div class="lm-header">
         <button class="lm-close-btn" onclick="lmClose()">✕</button>
         <div class="lm-score-line" id="lm-score-line"></div>
@@ -1214,9 +1217,10 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 </div>
 
 <!-- SQUAD MODAL -->
-<div class="modal-overlay" id="squad-modal-overlay" style="touch-action:manipulation;">
-  <div class="modal" style="max-width:480px;width:95%;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+<div class="modal-overlay squad-sheet-overlay" id="squad-modal-overlay" style="touch-action:manipulation;">
+  <div class="squad-sheet" id="squad-modal-sheet">
+    <div class="lm-handle-wrap" id="squad-modal-handle-wrap"><div class="lm-handle"></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div id="squad-modal-title" style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent);letter-spacing:2px;"></div>
       <button onclick="closeSquadModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
@@ -2923,6 +2927,36 @@ function ovCloseModal() {
       hw.addEventListener('touchend', e => {
         const dy = e.changedTouches[0].clientY - hy;
         if (!moved || dy > 30) ovCloseModal();   // tap, or any meaningful downward drag
+      }, {passive:true});
+    }
+  });
+})();
+
+// Same close gestures for the lineup/stats modal: handle tap/pull, and a
+// scroll-aware pull-down on the sheet (only dismiss when scrolled to top).
+(function(){
+  document.addEventListener('DOMContentLoaded', () => {
+    const sheet = document.getElementById('lm-sheet');
+    const hw = document.getElementById('lm-handle-wrap');
+    if (sheet) {
+      let ty = 0, startedAtTop = false;
+      sheet.addEventListener('touchstart', e => {
+        ty = e.touches[0].clientY;
+        startedAtTop = sheet.scrollTop <= 0;
+      }, {passive:true});
+      sheet.addEventListener('touchend', e => {
+        if (!startedAtTop) return;
+        if (sheet.scrollTop > 0) return;
+        if (e.changedTouches[0].clientY - ty > 80) lmClose();
+      }, {passive:true});
+    }
+    if (hw) {
+      let hy = 0, moved = false;
+      hw.addEventListener('touchstart', e => { hy = e.touches[0].clientY; moved = false; }, {passive:true});
+      hw.addEventListener('touchmove', e => { if (Math.abs(e.touches[0].clientY - hy) > 4) moved = true; }, {passive:true});
+      hw.addEventListener('touchend', e => {
+        const dy = e.changedTouches[0].clientY - hy;
+        if (!moved || dy > 30) lmClose();
       }, {passive:true});
     }
   });
@@ -6633,31 +6667,68 @@ function openSquadModal(team) {
 
   h += `<table style="width:100%;border-collapse:collapse;font-family:'${BC}',sans-serif;">
     <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="text-align:left;padding:6px 12px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;">${t('th_player')}</th>
-      <th style="padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;">${t('th_pos')}</th>
-      <th style="padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;">${t('th_age')}</th>
-      <th style="text-align:left;padding:6px 8px;font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;">${t('th_club')}</th>
+      <th style="text-align:left;padding:6px 8px 6px 12px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${t('th_player')}</th>
+      <th style="padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;">${t('th_pos')}</th>
+      <th style="padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;">${t('th_age')}</th>
+      <th style="text-align:left;padding:6px 4px;font-size:0.68rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${t('th_club')}</th>
+      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Goals">⚽</th>
+      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Yellow cards">🟨</th>
+      <th style="padding:6px 3px;font-size:0.78rem;text-align:center;" title="Red cards">🟥</th>
     </tr></thead><tbody>`;
 
   let lastPos = '';
   players.forEach(p => {
     if(p.pos && p.pos !== lastPos) {
       lastPos = p.pos;
-      h += `<tr><td colspan="4" style="padding:6px 12px 2px;font-family:'${BC}',sans-serif;font-size:0.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);background:rgba(201,168,76,0.04);border-bottom:1px solid var(--border);">${p.pos}</td></tr>`;
+      h += `<tr><td colspan="7" style="padding:6px 12px 2px;font-family:'${BC}',sans-serif;font-size:0.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);background:rgba(201,168,76,0.04);border-bottom:1px solid var(--border);">${p.pos}</td></tr>`;
     }
+    const g = p.goals||0, y = p.yellows||0, r = p.reds||0;
     h += `<tr style="border-bottom:1px solid rgba(30,45,61,0.4);">
-      <td style="padding:7px 12px;font-size:0.88rem;">${p.name||''}</td>
-      <td style="padding:7px 8px;text-align:center;font-size:0.78rem;color:var(--muted);">${p.pos||'—'}</td>
-      <td style="padding:7px 8px;text-align:center;font-size:0.88rem;font-family:'${BN}',sans-serif;">${p.age!=null?p.age:'—'}</td>
-      <td style="padding:7px 8px;font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">${p.club||'—'}</td>
+      <td style="padding:7px 8px 7px 12px;font-size:0.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">${p.name||''}</td>
+      <td style="padding:7px 4px;text-align:center;font-size:0.74rem;color:var(--muted);">${p.pos||'—'}</td>
+      <td style="padding:7px 4px;text-align:center;font-size:0.84rem;font-family:'${BN}',sans-serif;">${p.age!=null?p.age:'—'}</td>
+      <td style="padding:7px 4px;font-size:0.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;">${p.club||'—'}</td>
+      <td style="padding:7px 3px;text-align:center;font-size:0.86rem;font-family:'${BN}',sans-serif;">${g||''}</td>
+      <td style="padding:7px 3px;text-align:center;font-size:0.86rem;font-family:'${BN}',sans-serif;">${y||''}</td>
+      <td style="padding:7px 3px;text-align:center;font-size:0.86rem;font-family:'${BN}',sans-serif;">${r||''}</td>
     </tr>`;
   });
 
-  if(!players.length) h += `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem;">No player data</td></tr>`;
+  if(!players.length) h += `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem;">No player data</td></tr>`;
   h += '</tbody></table>';
   content.innerHTML = h;
   overlay.classList.add('open');
 }
+
+// Bottom-sheet close gestures for the Results-tab squad modal.
+(function(){
+  document.addEventListener('DOMContentLoaded', () => {
+    const sheet = document.getElementById('squad-modal-sheet');
+    const body = document.getElementById('squad-modal-content');
+    const hw = document.getElementById('squad-modal-handle-wrap');
+    if (sheet) {
+      let ty = 0, startedAtTop = false;
+      sheet.addEventListener('touchstart', e => {
+        ty = e.touches[0].clientY;
+        startedAtTop = !body || body.scrollTop <= 0;
+      }, {passive:true});
+      sheet.addEventListener('touchend', e => {
+        if (!startedAtTop) return;
+        if (body && body.scrollTop > 0) return;
+        if (e.changedTouches[0].clientY - ty > 80) closeSquadModal();
+      }, {passive:true});
+    }
+    if (hw) {
+      let hy = 0, moved = false;
+      hw.addEventListener('touchstart', e => { hy = e.touches[0].clientY; moved = false; }, {passive:true});
+      hw.addEventListener('touchmove', e => { if (Math.abs(e.touches[0].clientY - hy) > 4) moved = true; }, {passive:true});
+      hw.addEventListener('touchend', e => {
+        const dy = e.changedTouches[0].clientY - hy;
+        if (!moved || dy > 30) closeSquadModal();
+      }, {passive:true});
+    }
+  });
+})();
 
 function closeSquadModal() {
   document.getElementById('squad-modal-overlay').classList.remove('open');
