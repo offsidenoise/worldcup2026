@@ -1775,12 +1775,22 @@ const KO_ROUNDS = [
 // ============================================================
 // STATE
 // ============================================================
+// Returns [home, away] in the REAL SCHEDULE orientation (matches ESPN). If the
+// pair isn't found in GROUP_FIXTURES (shouldn't happen for the 72 group games),
+// the input order is preserved.
+function scheduleOrient(a, b) {
+  if (GROUP_FIXTURES[a+'_'+b]) return [a, b];
+  if (GROUP_FIXTURES[b+'_'+a]) return [b, a];
+  return [a, b];
+}
 function genMatches(teams) {
   const m=[];
   for(let i=0;i<teams.length;i++)
-    for(let j=i+1;j<teams.length;j++)
-      m.push({home:teams[i],away:teams[j],homeScore:null,awayScore:null,
+    for(let j=i+1;j<teams.length;j++){
+      const [h,a]=scheduleOrient(teams[i],teams[j]);
+      m.push({home:h,away:a,homeScore:null,awayScore:null,
               homeYellow:0,homeRed:0,awayYellow:0,awayRed:0});
+    }
   return m;
 }
 
@@ -1826,6 +1836,28 @@ function loadState() {
       if(state.groupMatches) delete state.groupMatches[g];
     }
   });
+  // One-time migration: reorient stored matches to the real schedule's home/away
+  // (ESPN order) so the overview never flips when live data loads. Scores, cards
+  // and scorers travel with the flip so nothing is mis-attributed.
+  if(state.groupMatches && !state._orientMigrated){
+    GROUP_KEYS.forEach(g => {
+      const arr = state.groupMatches[g];
+      if(!arr) return;
+      arr.forEach(m => {
+        if(GROUP_FIXTURES[m.away+'_'+m.home] && !GROUP_FIXTURES[m.home+'_'+m.away]){
+          // stored order is reversed vs schedule — flip everything together
+          [m.home, m.away] = [m.away, m.home];
+          [m.homeScore, m.awayScore] = [m.awayScore, m.homeScore];
+          [m.homeYellow, m.awayYellow] = [m.awayYellow, m.homeYellow];
+          [m.homeRed, m.awayRed] = [m.awayRed, m.homeRed];
+          if(m.homeScorers || m.awayScorers){
+            const hs = m.homeScorers; m.homeScorers = m.awayScorers; m.awayScorers = hs;
+          }
+        }
+      });
+    });
+    state._orientMigrated = true;
+  }
 }
 
 // ============================================================
