@@ -6307,11 +6307,16 @@ function _liveInitForDay() {
 function ovMatchRow(m, withButtons) {
   // Find live event for this match
   let liveEv = null;
+  let liveReversed = false;  // true when ESPN's home/away is flipped vs our fixture order
   for (const ev of Object.values(_liveEvents)) {
     const direct = namesMatch(m.home, ev.home) && namesMatch(m.away, ev.away);
     const reversed = namesMatch(m.home, ev.away) && namesMatch(m.away, ev.home);
-    if (direct || reversed) { liveEv = ev; break; }
+    if (direct || reversed) { liveEv = ev; liveReversed = reversed && !direct; break; }
   }
+  // Scores aligned to OUR fixture's home/away order (m.home / m.away). When ESPN
+  // lists the teams in the opposite order, flip so each score sits with its team.
+  const lvHome = liveEv ? (liveReversed ? liveEv.awayScore : liveEv.homeScore) : 0;
+  const lvAway = liveEv ? (liveReversed ? liveEv.homeScore : liveEv.awayScore) : 0;
 
   const dtStr = m.kickoffDt
     ? m.kickoffDt.toLocaleDateString(LANG==='es'?'es':[], {weekday:'short', month:'short', day:'numeric'})
@@ -6326,14 +6331,8 @@ function ovMatchRow(m, withButtons) {
   const canOpen = liveEv && (isLive || isPre || isPost);
 
   let right = '';
-  if (isLive) {
-    const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
-    right = `<div class="ov-match-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-      <div class="ov-score-live">${liveEv.homeScore}–${liveEv.awayScore}</div>
-      <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
-    </div>`;
-  } else if (isPost) {
-    right = `<div class="ov-match-score">${liveEv.homeScore}–${liveEv.awayScore}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
+  if (isPost) {
+    right = `<div class="ov-match-score">${lvHome}–${lvAway}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else if (m.score) {
     right = `<div class="ov-match-score">${m.score}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else {
@@ -6343,6 +6342,25 @@ function ovMatchRow(m, withButtons) {
   const clickAttr = canOpen ? `onclick="lmOpen('${liveEv.id}')"` : '';
   const liveClass = isLive ? ' is-live' : '';
   const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
+
+  // Live: show each team's score (in red) next to its own name, in OUR fixture order.
+  if (isLive) {
+    const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
+    return `<div class="ov-match-row${liveClass}" ${clickAttr}>
+      <div class="ov-match-teams" style="flex:1;">
+        ${matchLbl}<div class="ov-teams-line">
+          ${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-score-live">${lvHome}</span>
+          <span class="ov-vs">–</span>
+          <span class="ov-score-live">${lvAway}</span> ${m.awayFlag||''} ${tTeam(m.away)}
+        </div>
+        <div class="ov-match-meta">${meta}</div>
+      </div>
+      <div class="ov-match-right" style="flex-shrink:0;">
+        <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
+        <div class="ov-match-grp">${m.grp||''}</div>
+      </div>
+    </div>`;
+  }
 
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
