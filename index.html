@@ -6344,6 +6344,24 @@ function ovMatchRow(m, withButtons) {
   const liveClass = isLive ? ' is-live' : '';
   const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
 
+  if (isLive) {
+    const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
+    return `<div class="ov-match-row${liveClass}" ${clickAttr}>
+      <div class="ov-match-teams" style="flex:1;">
+        ${matchLbl}<div class="ov-teams-line">
+          ${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-score-live">${liveEv.homeScore}</span>
+          <span class="ov-vs">–</span>
+          <span class="ov-score-live">${liveEv.awayScore}</span> ${m.awayFlag||''} ${tTeam(m.away)}
+        </div>
+        <div class="ov-match-meta">${meta}</div>
+      </div>
+      <div class="ov-match-right" style="flex-shrink:0;">
+        <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
+        <div class="ov-match-grp">${m.grp||''}</div>
+      </div>
+    </div>`;
+  }
+
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
       ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
