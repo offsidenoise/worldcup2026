@@ -837,6 +837,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-live-clock { font-size:0.7rem; font-weight:700; color:#e63946;
   font-family:'Bebas Neue',sans-serif; letter-spacing:1px; }
 .ov-score-live { font-size:1rem; font-weight:700; color:#e63946; }
+.ov-match-score-inline { font-size:1rem; font-weight:700; color:var(--accent); }
 
 /* Live match modal */
 .lm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72);
@@ -5747,9 +5748,16 @@ async function globalRefresh(){
         for(const g of GROUP_KEYS){
           for(const m of state.groupMatches[g]){
             if(m.homeScore!==null) continue;
-            if(namesMatch(m.home,homeName)&&namesMatch(m.away,awayName)){
-              m.homeScore=homeScore;m.awayScore=awayScore;
-              // Card totals from boxscore stats — fetched in summary pass below
+            const direct   = namesMatch(m.home,homeName) && namesMatch(m.away,awayName);
+            const reversed = namesMatch(m.home,awayName) && namesMatch(m.away,homeName);
+            if(direct || reversed){
+              // Store scores aligned to OUR stored home/away order. When ESPN lists
+              // the teams in the opposite order (24 of 72 fixtures do), flip the
+              // scores so each goal total stays with the correct team. Previously
+              // a reversed orientation failed both namesMatch checks and the result
+              // was silently dropped.
+              if(direct){ m.homeScore=homeScore; m.awayScore=awayScore; }
+              else      { m.homeScore=awayScore; m.awayScore=homeScore; }
               m._espnId=event.id;
               updated=true;break;
             }
@@ -5762,11 +5770,17 @@ async function globalRefresh(){
             const existing=state.knockout[mn];
             if(existing?.homeScore!=null) continue;
             const {home,away}=getKOMatchTeams(mn);
-            if(home&&away&&namesMatch(home,homeName)&&namesMatch(away,awayName)){
+            const koDirect   = home&&away&&namesMatch(home,homeName)&&namesMatch(away,awayName);
+            const koReversed = home&&away&&namesMatch(home,awayName)&&namesMatch(away,homeName);
+            if(koDirect || koReversed){
+              // Align scores to OUR bracket's home/away. ESPN may list teams in the
+              // opposite order; flip so each score stays with the correct side.
+              const hS = koDirect ? homeScore : awayScore;
+              const aS = koDirect ? awayScore : homeScore;
               if(!state.knockout[mn]) state.knockout[mn]={};
               state.knockout[mn].home=home; state.knockout[mn].away=away;
-              state.knockout[mn].homeScore=homeScore; state.knockout[mn].awayScore=awayScore;
-              state.knockout[mn].winner=homeScore>awayScore?home:away;
+              state.knockout[mn].homeScore=hS; state.knockout[mn].awayScore=aS;
+              state.knockout[mn].winner=hS>aS?home:away;
               if(state.predictions.knockout[mn]) delete state.predictions.knockout[mn];
               cascadeClearKO(mn); updated=true; break;
             }
@@ -5843,17 +5857,31 @@ async function globalRefresh(){
               let done=false;
               for(const m of state.groupMatches[g]){
                 if(m.homeScore===null) continue;
-                if(namesMatch(m.home,hNm)&&namesMatch(m.away,aNm)){
-                  if(teamCards[hNm]){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
-                  if(teamCards[aNm]){m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
-                  // Attribute scorers to home/away. Own goals count for the OPPOSING team.
+                // Match in EITHER orientation. hNm/aNm are ESPN's home/away team
+                // names; m.home/m.away are OUR stored order (may be flipped).
+                const direct   = namesMatch(m.home,hNm)&&namesMatch(m.away,aNm);
+                const reversed = namesMatch(m.home,aNm)&&namesMatch(m.away,hNm);
+                if(direct || reversed){
+                  // Cards: attribute to the stored side by matching the ESPN team
+                  // name to m.home / m.away directly (orientation-proof).
+                  if(teamCards[hNm]){
+                    if(namesMatch(m.home,hNm)){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
+                    else                       {m.awayYellow=teamCards[hNm].y;m.awayRed=teamCards[hNm].r;}
+                  }
+                  if(teamCards[aNm]){
+                    if(namesMatch(m.home,aNm)){m.homeYellow=teamCards[aNm].y;m.homeRed=teamCards[aNm].r;}
+                    else                       {m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
+                  }
+                  // Scorers: attribute by the BENEFITING team, mapped to OUR stored
+                  // home/away. Own goals count for the opposing team.
                   const homeScorers=[], awayScorers=[];
                   matchScorers.forEach(s=>{
-                    const scoredForHome = namesMatch(s.scorerTeam, hNm);
-                    // benefiting side: own goal flips it
-                    const benefitsHome = s.og ? !scoredForHome : scoredForHome;
+                    const scoredForEspnHome = namesMatch(s.scorerTeam, hNm);
+                    const benefitsEspnHome = s.og ? !scoredForEspnHome : scoredForEspnHome;
+                    // benefiting ESPN-team name:
+                    const benTeam = benefitsEspnHome ? hNm : aNm;
                     const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
-                    (benefitsHome?homeScorers:awayScorers).push(label);
+                    (namesMatch(m.home,benTeam)?homeScorers:awayScorers).push(label);
                   });
                   m.homeScorers=homeScorers; m.awayScorers=awayScorers;
                   done=true;break;
@@ -6307,16 +6335,11 @@ function _liveInitForDay() {
 function ovMatchRow(m, withButtons) {
   // Find live event for this match
   let liveEv = null;
-  let liveReversed = false;  // true when ESPN's home/away is flipped vs our fixture order
   for (const ev of Object.values(_liveEvents)) {
     const direct = namesMatch(m.home, ev.home) && namesMatch(m.away, ev.away);
     const reversed = namesMatch(m.home, ev.away) && namesMatch(m.away, ev.home);
-    if (direct || reversed) { liveEv = ev; liveReversed = reversed && !direct; break; }
+    if (direct || reversed) { liveEv = ev; break; }
   }
-  // Scores aligned to OUR fixture's home/away order (m.home / m.away). When ESPN
-  // lists the teams in the opposite order, flip so each score sits with its team.
-  const lvHome = liveEv ? (liveReversed ? liveEv.awayScore : liveEv.homeScore) : 0;
-  const lvAway = liveEv ? (liveReversed ? liveEv.homeScore : liveEv.awayScore) : 0;
 
   const dtStr = m.kickoffDt
     ? m.kickoffDt.toLocaleDateString(LANG==='es'?'es':[], {weekday:'short', month:'short', day:'numeric'})
@@ -6330,10 +6353,31 @@ function ovMatchRow(m, withButtons) {
   const isPost = liveEv?.state === 'post';
   const canOpen = liveEv && (isLive || isPre || isPost);
 
+  // Live & finished matches use ESPN as the source of truth for home/away order
+  // and score, so each score sits with its correct team. Live scores are red.
+  if (isLive || isPost) {
+    const ht = isLive && liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
+    const scoreCls = isLive ? 'ov-score-live' : 'ov-match-score-inline';
+    const rightInfo = isLive
+      ? `<div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div><div class="ov-match-grp">${m.grp||''}</div>`
+      : `<div class="ov-match-grp">${m.grp||''}</div>`;
+    return `<div class="ov-match-row${isLive?' is-live':''}" onclick="lmOpen('${liveEv.id}')">
+      <div class="ov-match-teams" style="flex:1;">
+        ${m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : ''}<div class="ov-teams-line">
+          ${liveEv.homeFlag||''} ${tTeam(liveEv.home)} <span class="${scoreCls}">${liveEv.homeScore}</span>
+          <span class="ov-vs">–</span>
+          <span class="${scoreCls}">${liveEv.awayScore}</span> ${liveEv.awayFlag||''} ${tTeam(liveEv.away)}
+        </div>
+        <div class="ov-match-meta">${meta}</div>
+      </div>
+      <div class="ov-match-right" style="flex-shrink:0;">
+        ${rightInfo}
+      </div>
+    </div>`;
+  }
+
   let right = '';
-  if (isPost) {
-    right = `<div class="ov-match-score">${lvHome}–${lvAway}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
-  } else if (m.score) {
+  if (m.score) {
     right = `<div class="ov-match-score">${m.score}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else {
     right = `<div class="ov-match-right"><div class="ov-match-time">${timeStr}</div><div class="ov-match-grp">${m.grp||''}</div></div>`;
@@ -6342,25 +6386,6 @@ function ovMatchRow(m, withButtons) {
   const clickAttr = canOpen ? `onclick="lmOpen('${liveEv.id}')"` : '';
   const liveClass = isLive ? ' is-live' : '';
   const matchLbl = m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : '';
-
-  // Live: show each team's score (in red) next to its own name, in OUR fixture order.
-  if (isLive) {
-    const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
-    return `<div class="ov-match-row${liveClass}" ${clickAttr}>
-      <div class="ov-match-teams" style="flex:1;">
-        ${matchLbl}<div class="ov-teams-line">
-          ${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-score-live">${lvHome}</span>
-          <span class="ov-vs">–</span>
-          <span class="ov-score-live">${lvAway}</span> ${m.awayFlag||''} ${tTeam(m.away)}
-        </div>
-        <div class="ov-match-meta">${meta}</div>
-      </div>
-      <div class="ov-match-right" style="flex-shrink:0;">
-        <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
-        <div class="ov-match-grp">${m.grp||''}</div>
-      </div>
-    </div>`;
-  }
 
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
