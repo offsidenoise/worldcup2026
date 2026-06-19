@@ -49,9 +49,11 @@ body {
   background-image: var(--body-bg-img);
 }
 
-/* ── HEADER LOGO ── */
-.header-logo { filter: invert(1); }
-body.light-mode .header-logo { filter: none; }
+/* ── HEADER LOGO ── (embedded white for dark mode, colored for light mode) */
+.header-logo-light { display: none; }
+.header-logo-dark  { display: inline-block; }
+body.light-mode .header-logo-dark  { display: none; }
+body.light-mode .header-logo-light { display: inline-block; }
 
 header {
   position: sticky; top:0; z-index:100;
@@ -837,7 +839,6 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-live-clock { font-size:0.7rem; font-weight:700; color:#e63946;
   font-family:'Bebas Neue',sans-serif; letter-spacing:1px; }
 .ov-score-live { font-size:1rem; font-weight:700; color:#e63946; }
-.ov-match-score-inline { font-size:1rem; font-weight:700; color:var(--accent); }
 
 /* Live match modal */
 .lm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72);
@@ -956,7 +957,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 
 <header>
   <div class="header-inner">
-    <div class="logo" id="header-logo-tap"><img class="header-logo" src="https://upload.wikimedia.org/wikipedia/en/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><span id="logo-title">World Cup</span> <span>2026</span></div>
+    <div class="logo" id="header-logo-tap"><img class="header-logo header-logo-dark" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAADAFBMVEVMaXH///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8AAACqqqoXFxc/IBC8lET09PMREREfEAlUVFQ0GQ2JYieRaCiecSstGAz6+voIKxlwcHA3IxF1SBxtRBkEBQU1NTXw8PADNR6EXieziD2EVyJYORSZZydALBLs4KlnZ2fq1ofS0tL27t8QDAuZbirOrGWrgT3VqVlJKxPAm0hjSBzfw3jkvW2KUiHx1p4PMR62jEyaczRJJRCqdS9+USB+VyKtgi7So0RXLA5oQRjBkD0nFwuygDS7jEPszo6lcSn29vaHh4czMzO4lEy6urq/lTmvjFDKqEuTbCvjyXqgfTluTR7awIAAPSTDl0LQrVj06cXz0IPNoEsnDg8KGxHKjzAaEQxeNxOMazPdvHaqdzbwx3rZtHnZtGWRXyXhuWW1eSt3Tx+6ijLgt3Wurq6YmJizs7OjhD5/f3/VrWVZWVn28OfIyMh0Wybv38ASHhMMJRWvkVvWu3XPsWuLXCTLqV3UtmfAnFICW0DHpVnmwnLXsU66jj3fyIdMNBLYvGznq01iQxi3gyvKmFT769L06bSqfDPozYKgeyylcyz51YsATTDSqWQlGg2siTh6PxrHm0pcQBd9SR21i0QHVDOXYCaaVyNQi3Ine1w5dV0AQSrs6LcZZkd0dHQ8PDzlzbjs7OxNb1778PBSUlLx5tbk5OTBn1br4c1tbW16ZlIqKipdXV2np6fJtpuymmndwqHy5bvcqVv857pVNCE/hWzg2pp1NRcrUETQuV66hTft0KrlmiRTSCT05qe2h1Iia1b/1XvfrkD09ta9pmJbiHBtOBaxfFBom4Xz3abCizDAwMDCl00B5oP/AAAAM3RSTlMAEOl2BJXyIpn+ASDhtPrkKNHuNNbBzR5P+Nufco6JB0zdkCuGamc2SKVEVAtigWTEpxiZwJC1AAAACXBIWXMAAAsTAAALEwEAmpwYAAAASnRFWHRYLVJlZgBkbDFfZDhjNTg1ZDRhY2ZkMmM1ODllM2EyOTQ5YzNhYWI1YjVkN2E4NmZlZTJmYzA3NDg4OGVhNmM1ZGUxOGVjZjMzZjtM/QEAAAU+SURBVHgBYsAAXOoyshzYgKyMOheGagzAospvjBvwq7Jg6EAF3IK4dYNlBMVRNaABZSawKnwEkwCaHmTAqIhPK1ROihFZCyrggKrBT7GiakIC7Hz4dUJl+biR9KAAZqgKBHUtLCxsPoILZTGj6EIColAFMOpyVfmtlZENi27ABKC0KJIeFICWAiLnlq9etzNo1cqNt6E6oRQPii4kwApJf9Ji/JwgpSkWFlnZ8TsiN6xdXgXiw7Ekkh5MoKzJBlFZZ2ERuyttSsHGgjcWyyBCUJIJUxccyHOALQep9LWwiE5vzfQ9kmcend0AEoFhMbhyDAajAUyRsY9vc2xf92TrQ9Z5R93iUQyQw9AHAyy8cP3GdpufhPiZdznuCreNKAprckPIGAvD1GPQMkiq7OJbgqa55qdlHfe33/3tfSciOfBi6IMBRiEkA3zygiZOMc93P9nk7pfx9dQ2uBQb7tykD1dkbGycmBqRsdd19XTXzQGT207Vw+OBTwJmHyaNFALGxjV2h1/NfVeV0r8z8UtPy/YkqOFCGpj64AAlM0f4HN2blDIhMPPjlGOBezdA9HNq4i1PJCGqoKS9W+G+t0lx7v6ftk1NjDI2NhYSZNViBwO4lWgMqE4o1R9d7ZNuv2dqUZ1vXmwCVBBCoemDA4gsjJzrHnC8YGqkQ6bj9NktMEEIDdeBxoDIwshohz19Nc0JWb1pAc96YIIQGk0fHEBkYWSmg19GfOuhyZ0xHjGPYIIQGq4DjQGRhZMOW/wK99W6Hns+YfljuCCYgaYPDsCSCKI9MduxeV3/QfOEVIQgmAXXgcYASyKIp25bTuZOLMz3j1qLEASz0PTBAVgSQbROW+GX4NDj2nWgFyEIZsF1oDHAkkhEnfmm9O0xkxx3BCAJgpho+uAAJIeMt750sE81D3SLQxYEseE60BjgZIpExG090ubun9MZhSQGZqLpwwQ63GB1k9xzew9ad+dCDODWwVSITURenxdaLBvfzai3ts6xNQe5GoTZeHXlsWlBAdo8IKVQvMLOMTC9ayGUB6J4tFFUY3C45ECq4Lje1do83B81DFXwNnNU4HrBjIWO1t1pMdVgNpzQw7AWARTgtQpEeX5ggG3OphoIB0Zy4i7UWERgiiA0Z7udrW1R1ioID06K4GxoScDVQBi2fdPdptn5rofwEKQCws2oLGmEGjDLJ7ewOHvS99pyMA9BSKNqQwA0H3zYf67xwu9k53PJDxGaQSwRhBZUFiwBgRQZGxsvdu44ceb0hQ7nM/uhIlBKCFUbAkDlYVRqyvnYoOLzBUsnFIGFSC3Wi+1zDv8M+mV7oD1p0VKwCcbGnIbsCPswWVBVUMrZe0nj57M/XnsnezuHQ8WMjdnwVI2oBixessbbec3Z0y9OJHtf7WiEm4CvcoUrAjFqItqqK9fvDgmprGyqDZkNEoJgPNU7RAGC5HQqsQQDJ5QkjruBgdCKn4WziYNfG0IWZyMLocTYeJapqWloxQOnBaamphXGM0ydkCRxNvOQ1BibmVhZmXqaeNmYhFu5LDAxmYEkibOhidzaN7MyNjYGGxBqbHzHyuw6kgE4m7rIjW0zj7JSiAH35jmZzQv2uIIwAWdjG7m5b+ZRGgoxwKVilkmwi8lMhAE4m/vIHQ5kL8wzKSvzuIQwQAYzF0AAN1IgXHQxNjaec79kZvBNTpc5xsalwSUwE3B3eRhYYWrw0koQ67CRjFJ4dUIk8XX7AGMQoLDjycAgTqjrK4a3qcrAwMCihlw5QhyNIHnUcNYJiCDhEsbZ/RfGUi8CAA75ZEHffGBtAAAAAElFTkSuQmCC" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><img class="header-logo header-logo-light" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAADAFBMVEVMaXEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8BAQFVVVXLy8seEAro6Oju7u4PDw+srKwqFwuQkJDDmkV1Sx27kkQDNR7Us2fNpkjOq2aKYSZJKhQHBweAViJaOxWUZic0Fw06IxG9l0Wro5cKJxYSDQuccC2EXiWedCpjSBzfw3jkvW0PMR4AQCeqfzGsdi2OazIILRru36qaayhXLA5AJRBALROEWCKmcyzBkD2zgyyygDRpRBm7jEOziDp4eHj8/PxFRUUuLi6TbCm9lDuzij/q1YLr04vHplfjyXrawIBuTR64kk+shTzWqlp+UCAnDg/QrVi0i0z06cXat2bZt3t4ViLz0IMKGxEhFwxgQhjx6LmcczXdvHY0HxDwx3r0156TYiVvRBrszY95OxlbNhJpPxcFVjaMVSI7HQ66jTvhuWUtGg7Lm02gfjT38tekcSmbXyaXl5eMjIxnZ2dRUVFMTEyAgICampr4+PioqKijo6M3NzejhD6WcS6leDqHYijBn1Hv38ASHhOvkVuHUiG2jUjLqV2pfTytjFHTqmLmwnLKkDDfyIcPXkVMNBKOZynToUFDHRC7iTDRsXCrdjYATTBMJQ/XvHBVNRr51Yt2RBu3eix9SR3EmFbirkRQi3Ine1yUWCP26KwdbFDiuXW0glHDw8NNb17lzbgbGxuDXC3x8fHi4uKxpqbV1dUqKipYWFjBljrx5tbr4c10XSpdSi9FMR2ymml+Y0Lp1ZvTpVTVsVHcqVv857rpp1I/hWzYsUvcs3MrUETIjTDg2prQuV4+blnNoE40JhL95s+6hTdTSCTlmiTt0Kq9pmL/1XtbiHDoyoPp5rRom4Xm5KMAOSU1fGFtOBY/Pz84nHYXAAAALXRSTlMATnYBNCgfIpkEtOPWwdz6EO794ZaI0c3qafFj+J/ojnKUpfIHC4NIRBWQLFRSZt6OAAAACXBIWXMAAAsTAAALEwEAmpwYAAAASnRFWHRYLVJlZgBkbDFfYzliODJmMGMwMTdiN2NkYTMzNzMzMTA3MTRjMDgzMGZhODNlMmM1Y2ExOTJlNGZiODNkZjU1NjIxOWQyYzVkOCohW3gAAAVJSURBVHgBYsAAzCxMWhzYgLwCCzOGagzAKcmtixtwS3Ji6EAF7GK4dYNlxNhQNaABVgmwKnyEHCuaHmSgyYdPK1SOTwBZCyoQgarBTymiakIC7Pz4dUJl+XEGAxNUBYK64unp6YngQllMSJaiAF6oAhh1vqJo+Vr7ghU3YQJQmhdFFxJASwH2ttbLNzZG2K7dfAuqE0oJI+lBAYqQ9CcrLicEUrrG2jpke8BU+wl5tutBfDiWQdGFDrSVpCAql1p7eIREH0rcnPjGeh9ECErKoetBAioiYMtBKrM9rB+G1takWMa7l9gVgERgWBxJAxoQQITjxexyy93dE42KjeJdrAJQDBBF04UAnFwwS3R1l1U15sZGG00K8W6JzJ1qeRAho8uC0IHGQk4IywIqI3a+r9+bsKbb9cfUz5vq4SZwoelCAAFBuCJdXd/4iKrQfvOedsukWOejJxLgUsq4c5M0XJGuru7qpsjSOPcjp933TZ84eXphNUxOiBFhIzoLKQR0dTMdurpsv6wvaj3Z9y2scvIDqAGC6ui6kABKZvbxbYhrq9gV43zy0OHouAkQ/UJKODMSCMhAVEHJbVbJBz62+Xe4nEmo6SvW1dWVEFPUYAcDkGJsGKoTSrWW2PmGbpti1TklJd4yECoIobBpBgGILIzckOSanWhl7+c86cXiSpgghAYpxoYhsjCyxMdvaVh5YEKzY+STMJgghMamGQQgsjDS2c+5NKC2eOImRyHHezBBCA1SjA1DZOGk39PY5AP5LYf3V++6DxcEM7BpBgGwJIIoW719UvnG1vrowCUIQTALpBgbBksiiMdWR6f3VCWbu6zLQwiCWdg0gwBYEkHU7uyLDfQJc/fe0IwQBLNAirFhsCQSMWXH1rgjju2TPkQiCYKY2DSDAEgOGTe89nFtio6x8kcWBLFBirFhcDJFIvwbJr/r2B/1qhhJDMzEphkFqIKVsbd3JDWbG3X3rINwVVHU4OSoSHNBi2Xdu6WFRkZRbv0gV4OwFJe0Ck59MKAjDFIKxQ7LzGNCjW5DeSBKWAemEDvNLApSBceFLUY7vF1Qw1AUbzNHDa4XzKgxN3LZ64iWjNSw2w0GjPpgfXDCPMbVLWprJpwPZujjLtQ4ecAq4IR+mUO/W2eILVwAwuDB2dBihCiAk267Tx+c4JDyHC4AZeAsl2WhCmCUb1LyNLsTX/OLYAJQWhbsXywEmg8+7Qn+s+VXkFdw0B2oTijFg0UvGMASEFTdyvC63uPHTtWFH98DFYFSgmDVWAioPIxqqvhp+XtaY+Kq6k6wkKCYCEnF+jTXqK5/EWfc7MvaVqwCm6Crq6/EjsViOICqglJeNl7Bp/5+f2kTZBPuDRXT1VXGGQUMDKheWOm1xSa89+2xZ71BNufqguEm4Ktc4YpAjMwldnZZj3Jycm5keeTnLgYJQTCe6h2iAInUhwMkQV3cDQxkVfjYOJs4+DQhy+FsZCErmmNgYJCRft1pkYGBQbrubAMnJEmczTwkNbrGeiYmBoZ6pmZ6l0xmLtLTm40kibOhidzaNzbR1dUFG5Chq2thctkMyQCcTV3kxrZxmmEqxICrC4SMF86Yb4owAWdjG9FM1dU1np96DWKARfocvXkWerMQBuBs7iO3M5G9sCDN0DDtLMIAnB0O5C7PTAtdXd25C51mzbugbzFXVzd1BjwecHd5GBQRtuBhaYHyDXYsgNJSxGEGD55uH2AMrHI4dCGE5Vg58VWSbOIIpVhZ4mwMmtLY3Q8R5ZRErhzRzRAGdb61cWYmiBHMLArykN4XGgnr/rOhtPcB2LQ5LJvR55AAAAAASUVORK5CYII=" alt="WC2026" style="height:32px;width:auto;vertical-align:middle;margin-right:6px;"><span id="logo-title">World Cup</span> <span>2026</span></div>
     <div class="header-right">
       <div class="refresh-wrap">
         <button class="header-refresh-btn" id="header-refresh-btn" onclick="globalRefresh()" title="Refresh live scores">⟳</button>
@@ -1775,20 +1776,24 @@ const KO_ROUNDS = [
 // ============================================================
 // STATE
 // ============================================================
-// Returns [home, away] in the REAL SCHEDULE orientation (matches ESPN). If the
-// pair isn't found in GROUP_FIXTURES (shouldn't happen for the 72 group games),
-// the input order is preserved.
+// Decide home/away orientation for a pair using the real FIFA schedule
+// (GROUP_FIXTURES is keyed "Home_Away" in schedule order). Returns [home,away].
+// Falls back to the given order if the pair isn't in the schedule table.
 function scheduleOrient(a, b) {
   if (GROUP_FIXTURES[a+'_'+b]) return [a, b];
   if (GROUP_FIXTURES[b+'_'+a]) return [b, a];
   return [a, b];
 }
 function genMatches(teams) {
+  // Iterate in the SAME nested-loop order as MATCH_PAIRS so array positions
+  // 0..5 stay valid, but emit each pair in real schedule (home/away) order so
+  // live/finished results line up with ESPN and the displayed home side is
+  // the actual fixture home side.
   const m=[];
   for(let i=0;i<teams.length;i++)
     for(let j=i+1;j<teams.length;j++){
-      const [h,a]=scheduleOrient(teams[i],teams[j]);
-      m.push({home:h,away:a,homeScore:null,awayScore:null,
+      const [home,away]=scheduleOrient(teams[i],teams[j]);
+      m.push({home,away,homeScore:null,awayScore:null,
               homeYellow:0,homeRed:0,awayYellow:0,awayRed:0});
     }
   return m;
@@ -1814,6 +1819,7 @@ function initState() {
   if(!state.predictions.group) state.predictions.group = {};
   if(!state.predictions.knockout) state.predictions.knockout = {};
   if(!state.predictions.scores) state.predictions.scores = {};
+  if(!state.cardLog) state.cardLog = {}; // athleteId -> {name,country,cards:[{key,matchId,type,phase}]}
   initKnockout();
 }
 
@@ -1836,27 +1842,32 @@ function loadState() {
       if(state.groupMatches) delete state.groupMatches[g];
     }
   });
-  // One-time migration: reorient stored matches to the real schedule's home/away
-  // (ESPN order) so the overview never flips when live data loads. Scores, cards
-  // and scorers travel with the flip so nothing is mis-attributed.
-  if(state.groupMatches && !state._orientMigrated){
-    GROUP_KEYS.forEach(g => {
-      const arr = state.groupMatches[g];
-      if(!arr) return;
-      arr.forEach(m => {
-        if(GROUP_FIXTURES[m.away+'_'+m.home] && !GROUP_FIXTURES[m.home+'_'+m.away]){
-          // stored order is reversed vs schedule — flip everything together
-          [m.home, m.away] = [m.away, m.home];
-          [m.homeScore, m.awayScore] = [m.awayScore, m.homeScore];
-          [m.homeYellow, m.awayYellow] = [m.awayYellow, m.homeYellow];
-          [m.homeRed, m.awayRed] = [m.awayRed, m.homeRed];
-          if(m.homeScorers || m.awayScorers){
-            const hs = m.homeScorers; m.homeScorers = m.awayScorers; m.awayScorers = hs;
-          }
+  // One-time orientation migration: earlier builds stored some matchday-3 pairs
+  // in genMatches nested-loop order rather than real schedule (home/away) order.
+  // Flip any stored match that disagrees with the schedule, carrying its
+  // scores/cards/scorers across the flip. Guarded so it runs at most once.
+  if(!state._orientMigrated){
+    GROUP_KEYS.forEach(g=>{
+      const stored=state.groupMatches?.[g];
+      if(!stored) return;
+      stored.forEach(m=>{
+        if(!m||!m.home||!m.away) return;
+        // If the schedule says these two teams play in the OPPOSITE order to
+        // how they're stored, flip the record in place.
+        const wantReversed = !!GROUP_FIXTURES[m.away+'_'+m.home] && !GROUP_FIXTURES[m.home+'_'+m.away];
+        if(wantReversed){
+          const h=m.home, a=m.away;
+          m.home=a; m.away=h;
+          const hs=m.homeScore, as=m.awayScore;
+          m.homeScore=as; m.awayScore=hs;
+          const hy=m.homeYellow||0, hr=m.homeRed||0, ay=m.awayYellow||0, ar=m.awayRed||0;
+          m.homeYellow=ay; m.homeRed=ar; m.awayYellow=hy; m.awayRed=hr;
+          const hsc=m.homeScorers, asc=m.awayScorers;
+          if(hsc!==undefined||asc!==undefined){ m.homeScorers=asc||[]; m.awayScorers=hsc||[]; }
         }
       });
     });
-    state._orientMigrated = true;
+    state._orientMigrated=true;
   }
 }
 
@@ -3042,8 +3053,7 @@ function renderGroups(){
       const best8thirds = allMatchesPlayed(g) ? getBestThirds().map(t=>t.name) : [];
       const rc=i<2?'qualified-row':i===2&&best8thirds.includes(t.name)?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
-      const fd=t.form.slice(-3).map(f=>`<div class="form-dot form-${f.toLowerCase()}"></div>`).join('');
-      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" data-squad="${t.name}" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td><td><div class="form-cell">${fd}</div></td></tr>`;
+      return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" data-squad="${t.name}" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td></tr>`;
     }).join('');
     const sortedMatchIdxs=Array.from({length:matches.length},(_,i)=>i).sort((a,b)=>
       fixtureSortKey(matches[a].home,matches[a].away)-fixtureSortKey(matches[b].home,matches[b].away)
@@ -3076,7 +3086,7 @@ function renderGroups(){
     }).join('');
     card.innerHTML=`
       <div class="group-header"><div class="group-letter">${g}</div><div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:0.9rem;">${t('group_label')} ${g}</div><div class="group-label">${matches.filter(m=>m.homeScore!==null).length}/${matches.length} ${t('group_played')}</div></div></div>
-      <table class="standings-table"><thead><tr><th style="text-align:left;padding-left:12px;">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>PTS</th><th>Form</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      <table class="standings-table"><thead><tr><th style="text-align:left;padding-left:12px;">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>PTS</th></tr></thead><tbody>${rowsHtml}</tbody></table>
       <div class="matches-section"><div class="matches-title">${t('matches_tap')}</div>${matchesHtml}</div>`;
     grid.appendChild(card);
   });
@@ -4846,23 +4856,148 @@ function getTeamStats(){
   return stats;
 }
 
-// ── Suspension logic (FIFA 2026: reset after group stage + after QF) ────────
+// ── Standalone summary write-back (used by the 90s live poll) ───────────────
+// Applies group-match cards + goal scorers from a single ESPN /summary JSON,
+// orientation-proof (attributes by team name, not ESPN home/away role) and
+// idempotent. Returns true if a stored group match was updated. This lets the
+// Results tab refresh within the poll interval instead of waiting for the daily
+// globalRefresh. KO matches are handled by globalRefresh; this covers groups.
+function _applyMatchDetailsFromSummary(sj){
+  if(!sj) return false;
+  const teamById={};
+  (sj.boxscore?.teams||sj.header?.competitions?.[0]?.competitors||[]).forEach(co=>{
+    const tm=co.team||co; teamById[tm?.id]=normalizeESPNTeam(tm?.displayName||tm?.name||'');
+  });
+  (sj.header?.competitions?.[0]?.competitors||[]).forEach(co=>{
+    if(co.team?.id && !teamById[co.team.id]) teamById[co.team.id]=normalizeESPNTeam(co.team.displayName||co.team.name||'');
+  });
+  const teamCards={};
+  Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
+  const matchScorers=[];
+  for(const ev of (sj.keyEvents||[])){
+    const tt=(ev.type?.text||ev.type?.id||'').toLowerCase();
+    const parts=ev.participants||[];
+    const evTeam=teamById[ev.team?.id]||'';
+    const min=ev.clock?.displayValue||'';
+    if(ev.scoringPlay===true){
+      const scorer=parts[0];
+      const pName=scorer?.athlete?.displayName||scorer?.athlete?.fullName||scorer?.athlete?.shortName;
+      const scorerTeam=teamById[scorer?.team?.id]||evTeam;
+      const isOG=tt.includes('own goal')||ev.ownGoal===true;
+      const isPen=ev.penaltyKick===true||tt.includes('penalty');
+      if(pName) matchScorers.push({name:pName,min,og:isOG,pen:isPen,scorerTeam});
+    }
+    if(tt.includes('yellow')){
+      for(const a of parts){const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;if(tName&&teamCards[tName])teamCards[tName].y++;}
+    }
+    if(tt.includes('red card')||ev.redCard===true){
+      for(const a of parts){const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;if(tName&&teamCards[tName])teamCards[tName].r++;}
+    }
+  }
+  const comps=sj.header?.competitions?.[0]?.competitors||[];
+  const hC=comps.find(co=>co.homeAway==='home')||comps[0];
+  const aC=comps.find(co=>co.homeAway==='away')||comps[1];
+  const hNm=teamById[hC?.team?.id], aNm=teamById[aC?.team?.id];
+  if(!hNm||!aNm) return false;
+  for(const g of GROUP_KEYS){
+    for(const m of (state.groupMatches[g]||[])){
+      const direct   = namesMatch(m.home,hNm)&&namesMatch(m.away,aNm);
+      const reversed = namesMatch(m.home,aNm)&&namesMatch(m.away,hNm);
+      if(direct||reversed){
+        const cardsForHome = teamCards[hNm] && namesMatch(m.home,hNm) ? teamCards[hNm]
+                           : teamCards[aNm] && namesMatch(m.home,aNm) ? teamCards[aNm] : null;
+        const cardsForAway = teamCards[hNm] && namesMatch(m.away,hNm) ? teamCards[hNm]
+                           : teamCards[aNm] && namesMatch(m.away,aNm) ? teamCards[aNm] : null;
+        if(cardsForHome){m.homeYellow=cardsForHome.y;m.homeRed=cardsForHome.r;}
+        if(cardsForAway){m.awayYellow=cardsForAway.y;m.awayRed=cardsForAway.r;}
+        const homeScorers=[], awayScorers=[];
+        matchScorers.forEach(s=>{
+          const scoredForStoredHome = namesMatch(s.scorerTeam, m.home);
+          const benefitsHome = s.og ? !scoredForStoredHome : scoredForStoredHome;
+          const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
+          (benefitsHome?homeScorers:awayScorers).push(label);
+        });
+        m.homeScorers=homeScorers; m.awayScorers=awayScorers;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ── Suspension logic (FIFA 2026 disciplinary rules) ─────────────────────────
+// Accurate model driven by the per-match card log (state.cardLog):
+//  • 2 yellows in SEPARATE matches → 1-match ban, then those yellows are wiped.
+//  • A direct red card → 1-match ban.
+//  • Yellow accumulation carries through the group stage and into the R32, then
+//    is wiped after the quarterfinals (FIFA reset). Reds are independent.
+//  • A ban is "served" once the player's team plays the match it applied to;
+//    once served it no longer shows (and its yellows are cleared).
+// We compute, per player, the matches their team has played in chronological
+// order, replay their cards against that sequence, and report only bans that
+// apply to a match the team has NOT yet played.
+function _teamMatchSequence(team){
+  // Chronological list of this team's matches: {espnId, played, kickoff}.
+  const fx=ovGetAllFixtures().filter(f=>f.home===team||f.away===team);
+  // ovGetAllFixtures doesn't carry espnId; map via state for played matches.
+  const espnByPair={};
+  GROUP_KEYS.forEach(g=>state.groupMatches[g].forEach(m=>{
+    if(m._espnId) espnByPair[[m.home,m.away].sort().join('|')]=String(m._espnId);
+  }));
+  Object.values(state.knockout).forEach(m=>{
+    if(m&&m._espnId&&m.home&&m.away) espnByPair[[m.home,m.away].sort().join('|')]=String(m._espnId);
+  });
+  return fx
+    .map(f=>({
+      kickoff: f.kickoffDt?f.kickoffDt.getTime():Number.MAX_SAFE_INTEGER,
+      played: f.score!=null,
+      espnId: espnByPair[[f.home,f.away].sort().join('|')]||null,
+    }))
+    .sort((a,b)=>a.kickoff-b.kickoff);
+}
 function calcSuspensions(){
-  const r32played=R32_SEEDS.some(s=>state.knockout[s.matchNum]?.homeScore!=null);
-  const qfplayed=QF_MATCHES.some(s=>state.knockout[s.matchNum]?.homeScore!=null);
   const suspended=[];
-  statsData.players.forEach(p=>{
-    const y=p.yellows||0, r=p.reds||0;
-    if(y===0&&r===0) return;
-    let suspGames=0;
-    // Yellow suspension: 2 in same phase
-    // We use total yellows as conservative (phase reset not tracked per-match yet)
-    const effectiveY = qfplayed ? 0 : y; // after QF reset, only reds matter
-    if(effectiveY>=2) suspGames+=Math.floor(effectiveY/2);
-    if(r>0) suspGames+=r;
-    if(suspGames>0){
-      const elim=(getNextOpponent(p.country)===t('eliminated')||getNextOpponent(p.country)==='Eliminated'||getNextOpponent(p.country)==='Eliminado');
-      suspended.push({name:p.name,country:p.country,gamesLeft:elim?0:suspGames,eliminated:elim});
+  const qfReset = QF_MATCHES.some(s=>state.knockout[s.matchNum]?.homeScore!=null);
+  Object.values(state.cardLog||{}).forEach(rec=>{
+    const cards=(rec.cards||[]);
+    if(!cards.length) return;
+    const seq=_teamMatchSequence(rec.country);
+    if(!seq.length) return;
+    // Order this player's cards by their match's position in the team sequence.
+    const idxOf=espnId=>{const i=seq.findIndex(s=>s.espnId&&s.espnId===String(espnId));return i;};
+    const sorted=cards
+      .map(cd=>({...cd, idx: idxOf(cd.matchId)}))
+      .filter(cd=>cd.idx>=0)
+      .sort((a,b)=>a.idx-b.idx);
+    if(!sorted.length) return;
+
+    // Walk matches in order, accumulating yellows and emitting bans.
+    let yellowCount=0;
+    const banMatchIdx=[]; // sequence indices the player is banned FOR
+    sorted.forEach(cd=>{
+      if(qfReset && (cd.phase==='group'||cd.phase==='r32'||cd.phase==='r16')) return; // wiped post-QF
+      if(cd.type==='R'){
+        banMatchIdx.push(cd.idx+1);          // miss the next match
+        yellowCount=0;                        // red doesn't interact with yellow tally
+      } else if(cd.type==='Y'){
+        yellowCount++;
+        if(yellowCount>=2){
+          banMatchIdx.push(cd.idx+1);         // 2nd yellow → miss next match
+          yellowCount=0;                       // wipe accumulated yellows
+        }
+      }
+    });
+    if(!banMatchIdx.length) return;
+
+    // A ban is pending only if its target match exists and is NOT yet played.
+    let pending=0;
+    banMatchIdx.forEach(bi=>{
+      const target=seq[bi];
+      if(target && !target.played) pending++;
+    });
+    if(pending>0){
+      const elim=(getNextOpponent(rec.country)===t('eliminated')||getNextOpponent(rec.country)==='Eliminated'||getNextOpponent(rec.country)==='Eliminado');
+      suspended.push({name:rec.name, country:rec.country, gamesLeft:elim?0:pending, eliminated:elim});
     }
   });
   return suspended;
@@ -5780,16 +5915,14 @@ async function globalRefresh(){
         for(const g of GROUP_KEYS){
           for(const m of state.groupMatches[g]){
             if(m.homeScore!==null) continue;
-            const direct   = namesMatch(m.home,homeName) && namesMatch(m.away,awayName);
-            const reversed = namesMatch(m.home,awayName) && namesMatch(m.away,homeName);
-            if(direct || reversed){
-              // Store scores aligned to OUR stored home/away order. When ESPN lists
-              // the teams in the opposite order (24 of 72 fixtures do), flip the
-              // scores so each goal total stays with the correct team. Previously
-              // a reversed orientation failed both namesMatch checks and the result
-              // was silently dropped.
-              if(direct){ m.homeScore=homeScore; m.awayScore=awayScore; }
-              else      { m.homeScore=awayScore; m.awayScore=homeScore; }
+            // Match in EITHER orientation; align ESPN's scores to the stored
+            // match's home/away so the score sits with the correct team.
+            const direct   = namesMatch(m.home,homeName)&&namesMatch(m.away,awayName);
+            const reversed = namesMatch(m.home,awayName)&&namesMatch(m.away,homeName);
+            if(direct||reversed){
+              m.homeScore = direct ? homeScore : awayScore;
+              m.awayScore = direct ? awayScore : homeScore;
+              // Card totals from boxscore stats — fetched in summary pass below
               m._espnId=event.id;
               updated=true;break;
             }
@@ -5802,17 +5935,19 @@ async function globalRefresh(){
             const existing=state.knockout[mn];
             if(existing?.homeScore!=null) continue;
             const {home,away}=getKOMatchTeams(mn);
-            const koDirect   = home&&away&&namesMatch(home,homeName)&&namesMatch(away,awayName);
-            const koReversed = home&&away&&namesMatch(home,awayName)&&namesMatch(away,homeName);
-            if(koDirect || koReversed){
-              // Align scores to OUR bracket's home/away. ESPN may list teams in the
-              // opposite order; flip so each score stays with the correct side.
+            if(!home||!away) continue;
+            // Match in EITHER orientation — ESPN may report the bracket's home
+            // team as its away side. Align scores to the bracket's home/away.
+            const koDirect   = namesMatch(home,homeName)&&namesMatch(away,awayName);
+            const koReversed = namesMatch(home,awayName)&&namesMatch(away,homeName);
+            if(koDirect||koReversed){
               const hS = koDirect ? homeScore : awayScore;
               const aS = koDirect ? awayScore : homeScore;
               if(!state.knockout[mn]) state.knockout[mn]={};
               state.knockout[mn].home=home; state.knockout[mn].away=away;
               state.knockout[mn].homeScore=hS; state.knockout[mn].awayScore=aS;
               state.knockout[mn].winner=hS>aS?home:away;
+              state.knockout[mn]._espnId=event.id;
               if(state.predictions.knockout[mn]) delete state.predictions.knockout[mn];
               cascadeClearKO(mn); updated=true; break;
             }
@@ -5849,6 +5984,31 @@ async function globalRefresh(){
             Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
             const matchScorers=[];  // {name, min, og, team}
 
+            // ── Card log capture (per-match, for accurate suspension tracking) ──
+            // Phase drives FIFA's "reset after QF" rule. Derive from the event's
+            // season slug / competition note when available, default to 'group'.
+            const _slug=(event.season?.slug||'').toLowerCase();
+            const _note=(event.competitions?.[0]?.altGameNote||'').toLowerCase();
+            let _phase='group';
+            if(_slug.includes('round-of-32')||_note.includes('round of 32')) _phase='r32';
+            else if(_slug.includes('round-of-16')||_note.includes('round of 16')) _phase='r16';
+            else if(_slug.includes('quarter')||_note.includes('quarter')) _phase='qf';
+            else if(_slug.includes('semi')||_note.includes('semi')) _phase='sf';
+            else if(_slug.includes('final')||_note.includes('final')) _phase='final';
+            const _matchId=String(event.id);
+            // Remove any previously-logged cards for THIS match so re-aggregation is idempotent.
+            Object.values(state.cardLog||{}).forEach(rec=>{
+              if(rec.cards) rec.cards=rec.cards.filter(cd=>cd.matchId!==_matchId);
+            });
+            const _logCard=(athlete, teamName, type)=>{
+              const aid=String(athlete?.id||athlete?.displayName||'');
+              if(!aid) return;
+              const nm=athlete?.displayName||athlete?.fullName||athlete?.shortName||'';
+              if(!state.cardLog[aid]) state.cardLog[aid]={name:nm, country:teamName, cards:[]};
+              else { state.cardLog[aid].name=nm; state.cardLog[aid].country=teamName; }
+              state.cardLog[aid].cards.push({matchId:_matchId, type, phase:_phase});
+            };
+
             for(const ev of (sj.keyEvents||[])){
               const tt=(ev.type?.text||ev.type?.id||'').toLowerCase();
               const parts=ev.participants||[];
@@ -5869,14 +6029,14 @@ async function globalRefresh(){
                 for(const a of parts){
                   const pName=a.athlete?.displayName||a.athlete?.fullName||a.athlete?.shortName;
                   const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;
-                  if(pName&&tName){ addStatToPlayer(pName,tName,0,1,0,newPlayers); if(teamCards[tName])teamCards[tName].y++; }
+                  if(pName&&tName){ addStatToPlayer(pName,tName,0,1,0,newPlayers); if(teamCards[tName])teamCards[tName].y++; _logCard(a.athlete,tName,'Y'); }
                 }
               }
               if(tt.includes('red card')||ev.redCard===true){
                 for(const a of parts){
                   const pName=a.athlete?.displayName||a.athlete?.fullName||a.athlete?.shortName;
                   const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;
-                  if(pName&&tName){ addStatToPlayer(pName,tName,0,0,1,newPlayers); if(teamCards[tName])teamCards[tName].r++; }
+                  if(pName&&tName){ addStatToPlayer(pName,tName,0,0,1,newPlayers); if(teamCards[tName])teamCards[tName].r++; _logCard(a.athlete,tName,'R'); }
                 }
               }
             }
@@ -5889,31 +6049,26 @@ async function globalRefresh(){
               let done=false;
               for(const m of state.groupMatches[g]){
                 if(m.homeScore===null) continue;
-                // Match in EITHER orientation. hNm/aNm are ESPN's home/away team
-                // names; m.home/m.away are OUR stored order (may be flipped).
+                // Match in EITHER orientation. Attribute cards/scorers by actual
+                // TEAM NAME (not ESPN's home/away role) so they land on the
+                // correct stored side regardless of how ESPN ordered the teams.
                 const direct   = namesMatch(m.home,hNm)&&namesMatch(m.away,aNm);
                 const reversed = namesMatch(m.home,aNm)&&namesMatch(m.away,hNm);
-                if(direct || reversed){
-                  // Cards: attribute to the stored side by matching the ESPN team
-                  // name to m.home / m.away directly (orientation-proof).
-                  if(teamCards[hNm]){
-                    if(namesMatch(m.home,hNm)){m.homeYellow=teamCards[hNm].y;m.homeRed=teamCards[hNm].r;}
-                    else                       {m.awayYellow=teamCards[hNm].y;m.awayRed=teamCards[hNm].r;}
-                  }
-                  if(teamCards[aNm]){
-                    if(namesMatch(m.home,aNm)){m.homeYellow=teamCards[aNm].y;m.homeRed=teamCards[aNm].r;}
-                    else                       {m.awayYellow=teamCards[aNm].y;m.awayRed=teamCards[aNm].r;}
-                  }
-                  // Scorers: attribute by the BENEFITING team, mapped to OUR stored
-                  // home/away. Own goals count for the opposing team.
+                if(direct||reversed){
+                  // Cards: key by the stored match's own team names.
+                  const cardsForHome = teamCards[hNm] && namesMatch(m.home,hNm) ? teamCards[hNm]
+                                     : teamCards[aNm] && namesMatch(m.home,aNm) ? teamCards[aNm] : null;
+                  const cardsForAway = teamCards[hNm] && namesMatch(m.away,hNm) ? teamCards[hNm]
+                                     : teamCards[aNm] && namesMatch(m.away,aNm) ? teamCards[aNm] : null;
+                  if(cardsForHome){m.homeYellow=cardsForHome.y;m.homeRed=cardsForHome.r;}
+                  if(cardsForAway){m.awayYellow=cardsForAway.y;m.awayRed=cardsForAway.r;}
+                  // Scorers: decide the benefiting side by team name. Own goals flip.
                   const homeScorers=[], awayScorers=[];
                   matchScorers.forEach(s=>{
-                    const scoredForEspnHome = namesMatch(s.scorerTeam, hNm);
-                    const benefitsEspnHome = s.og ? !scoredForEspnHome : scoredForEspnHome;
-                    // benefiting ESPN-team name:
-                    const benTeam = benefitsEspnHome ? hNm : aNm;
+                    const scoredForStoredHome = namesMatch(s.scorerTeam, m.home);
+                    const benefitsHome = s.og ? !scoredForStoredHome : scoredForStoredHome;
                     const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
-                    (namesMatch(m.home,benTeam)?homeScorers:awayScorers).push(label);
+                    (benefitsHome?homeScorers:awayScorers).push(label);
                   });
                   m.homeScorers=homeScorers; m.awayScorers=awayScorers;
                   done=true;break;
@@ -6294,6 +6449,37 @@ async function _liveFetchAll(espnFetch) {
       stats,
       hasLineups: homeLineup.length > 0 || awayLineup.length > 0,
     };
+
+    // Option A: when a match has finished, fold its final score + cards/scorers
+    // into stored state right away (don't wait for the daily globalRefresh) so
+    // the Results tab reflects it within the poll interval. Orientation-aware.
+    if (evState === 'post') {
+      const hS = parseInt(homeComp.score) || 0;
+      const aS = parseInt(awayComp.score) || 0;
+      let touched = false;
+      for (const g of GROUP_KEYS) {
+        for (const m of (state.groupMatches[g] || [])) {
+          if (m.homeScore !== null) continue;
+          const direct   = namesMatch(m.home, homeName) && namesMatch(m.away, awayName);
+          const reversed = namesMatch(m.home, awayName) && namesMatch(m.away, homeName);
+          if (direct || reversed) {
+            m.homeScore = direct ? hS : aS;
+            m.awayScore = direct ? aS : hS;
+            m._espnId = event.id;
+            touched = true;
+          }
+        }
+      }
+      if (sumJson && _applyMatchDetailsFromSummary(sumJson)) touched = true;
+      if (touched) {
+        saveState();
+        const resPage = document.getElementById('page-results');
+        if (resPage && resPage.classList.contains('active')) {
+          renderGroups();
+          if (typeof resSubtab !== 'undefined' && resSubtab === 'knockout') renderKnockout();
+        }
+      }
+    }
   }
 }
 
@@ -6385,31 +6571,16 @@ function ovMatchRow(m, withButtons) {
   const isPost = liveEv?.state === 'post';
   const canOpen = liveEv && (isLive || isPre || isPost);
 
-  // Live & finished matches use ESPN as the source of truth for home/away order
-  // and score, so each score sits with its correct team. Live scores are red.
-  if (isLive || isPost) {
-    const ht = isLive && liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
-    const scoreCls = isLive ? 'ov-score-live' : 'ov-match-score-inline';
-    const rightInfo = isLive
-      ? `<div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div><div class="ov-match-grp">${m.grp||''}</div>`
-      : `<div class="ov-match-grp">${m.grp||''}</div>`;
-    return `<div class="ov-match-row${isLive?' is-live':''}" onclick="lmOpen('${liveEv.id}')">
-      <div class="ov-match-teams" style="flex:1;">
-        ${m.matchLabel ? `<div class="ov-match-numlbl">${m.matchLabel}</div>` : ''}<div class="ov-teams-line">
-          ${liveEv.homeFlag||''} ${tTeam(liveEv.home)} <span class="${scoreCls}">${liveEv.homeScore}</span>
-          <span class="ov-vs">–</span>
-          <span class="${scoreCls}">${liveEv.awayScore}</span> ${liveEv.awayFlag||''} ${tTeam(liveEv.away)}
-        </div>
-        <div class="ov-match-meta">${meta}</div>
-      </div>
-      <div class="ov-match-right" style="flex-shrink:0;">
-        ${rightInfo}
-      </div>
-    </div>`;
-  }
-
   let right = '';
-  if (m.score) {
+  if (isLive) {
+    const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
+    right = `<div class="ov-match-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+      <div class="ov-score-live">${liveEv.homeScore}–${liveEv.awayScore}</div>
+      <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
+    </div>`;
+  } else if (isPost) {
+    right = `<div class="ov-match-score">${liveEv.homeScore}–${liveEv.awayScore}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
+  } else if (m.score) {
     right = `<div class="ov-match-score">${m.score}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else {
     right = `<div class="ov-match-right"><div class="ov-match-time">${timeStr}</div><div class="ov-match-grp">${m.grp||''}</div></div>`;
