@@ -127,6 +127,18 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .team-rank { font-size:0.75rem; color:var(--muted); margin-right:6px; }
 .qualified-row { background:rgba(46,204,113,0.06); }
 .qualified-row td:first-child { border-left:3px solid var(--green); }
+/* Mathematically-confirmed (clinched) team — winner or guaranteed top-2 */
+.clinch-row { background:rgba(201,168,76,0.12); }
+.clinch-row td { color:var(--accent2); }
+.clinch-row td:first-child { border-left:3px solid var(--accent); }
+.clinch-row .pts-cell { color:var(--accent2); }
+/* Predictions standings is a grid of spans, not a table.
+   "Advancing" (predicted) already owns gold here, so a CONFIRMED (clinched)
+   team is shown in GREEN instead — distinct hue, and matches the Results tab's
+   green "real qualification" language. Overrides the gold .adv text colors. */
+.pred-srow.clinch-row { background:rgba(46,204,113,0.12); border-left:3px solid var(--green); }
+.pred-srow.clinch-row span, .pred-srow.clinch-row .pred-team-nm, .pred-srow.clinch-row .pred-pts, .pred-srow.clinch-row .pred-rank { color:var(--green) !important; }
+.pred-srow.clinch-row .pred-qual-bar { background:var(--green); }
 .playoff-row { background:rgba(52,152,219,0.06); }
 .playoff-row td:first-child { border-left:3px solid var(--blue); }
 .pts-cell { font-weight:700; color:var(--accent2); }
@@ -2185,6 +2197,107 @@ function initKnockout() {
 // Returns {name, preliminary, slot} for a group slot like 'A1', 'A2'.
 // name is always set — either the current leader or the raw slot label.
 // preliminary=true if group isn't fully played yet.
+// ── Clinch detection ────────────────────────────────────────────────────────
+// Returns the team that has MATHEMATICALLY locked 1st place in a group before
+// all matches are played, or null if 1st is still contestable. Works by
+// enumerating every W/D/L combination of the group's remaining matches, applying
+// representative scorelines, and running the real calcStandings (same FIFA
+// tiebreakers) on each scenario. The leader has clinched 1st only if it finishes
+// 1st in EVERY scenario. To be safe against goal-difference swings we test, for
+// each scenario, a range of margins for the undecided matches.
+//
+// clinchedQualified(group) likewise returns the set of teams guaranteed a top-2
+// finish (cannot be pushed below 2nd in any scenario).
+function _groupRemainingIdx(group){
+  const ms=state.groupMatches[group]||[];
+  const idx=[];
+  ms.forEach((m,i)=>{ if(m.homeScore===null) idx.push(i); });
+  return idx;
+}
+// Run fn() with hypothetical scores applied to the given match indices, then
+// restore original values no matter what.
+function _withHypotheticalScores(group, assignments, fn){
+  const ms=state.groupMatches[group];
+  const saved=assignments.map(a=>{
+    const m=ms[a.idx];
+    return {idx:a.idx, hs:m.homeScore, as:m.awayScore};
+  });
+  try{
+    assignments.forEach(a=>{ ms[a.idx].homeScore=a.hs; ms[a.idx].awayScore=a.as; });
+    return fn();
+  } finally {
+    saved.forEach(s=>{ ms[s.idx].homeScore=s.hs; ms[s.idx].awayScore=s.as; });
+  }
+}
+// Build the list of scenarios. Each remaining match can be home-win, draw, or
+// away-win. We attach representative scorelines; to stress goal difference we
+// test two margins per decisive result (narrow 1-0 and wide 3-0) so a clinch
+// claim must survive both small and large swings.
+function _enumerateScenarios(group){
+  const rem=_groupRemainingIdx(group);
+  const ms=state.groupMatches[group];
+  // outcome codes: 0=home win, 1=draw, 2=away win; margins tested for wins
+  const marginPairs=[[1,0],[3,0]]; // [winnerGoals, loserGoals]
+  let scenarios=[[]];
+  rem.forEach(idx=>{
+    const next=[];
+    scenarios.forEach(prefix=>{
+      // home win (two margins)
+      marginPairs.forEach(([w,l])=>next.push([...prefix,{idx,hs:w,as:l}]));
+      // draw (two scorelines: 0-0 and 2-2 to vary GF)
+      next.push([...prefix,{idx,hs:0,as:0}]);
+      next.push([...prefix,{idx,hs:2,as:2}]);
+      // away win (two margins)
+      marginPairs.forEach(([w,l])=>next.push([...prefix,{idx,hs:l,as:w}]));
+    });
+    scenarios=next;
+  });
+  return scenarios;
+}
+function clinchedFirst(group){
+  const rem=_groupRemainingIdx(group);
+  if(rem.length===0){
+    // All played — the standings leader is simply the winner.
+    return calcStandings(group)[0]?.name||null;
+  }
+  // Current leader (by real results so far). If nobody has played, no clinch.
+  const anyPlayed=(state.groupMatches[group]||[]).some(m=>m.homeScore!==null);
+  if(!anyPlayed) return null;
+  const leader=calcStandings(group)[0]?.name;
+  if(!leader) return null;
+  // Cap scenario blowup: with marginPairs the branching is up to 6 per match;
+  // group stage has at most 3 remaining → 6^3 = 216, fine. Guard anyway.
+  if(rem.length>3) return null;
+  const scenarios=_enumerateScenarios(group);
+  for(const sc of scenarios){
+    const top=_withHypotheticalScores(group, sc, ()=>calcStandings(group)[0]?.name);
+    if(top!==leader) return null; // some scenario dethrones the leader
+  }
+  return leader;
+}
+function clinchedQualified(group){
+  // Set of teams that cannot finish below 2nd in any scenario.
+  const rem=_groupRemainingIdx(group);
+  const teams=GROUPS[group];
+  if(rem.length===0){
+    const st=calcStandings(group);
+    return new Set([st[0]?.name, st[1]?.name].filter(Boolean));
+  }
+  const anyPlayed=(state.groupMatches[group]||[]).some(m=>m.homeScore!==null);
+  if(!anyPlayed) return new Set();
+  if(rem.length>3) return new Set();
+  const scenarios=_enumerateScenarios(group);
+  // A team qualifies-for-sure if it is in the top 2 in EVERY scenario.
+  const safe=new Set(teams);
+  for(const sc of scenarios){
+    const st=_withHypotheticalScores(group, sc, ()=>calcStandings(group));
+    const top2=new Set([st[0]?.name, st[1]?.name]);
+    for(const t of [...safe]){ if(!top2.has(t)) safe.delete(t); }
+    if(safe.size===0) break;
+  }
+  return safe;
+}
+
 function getSlotTeam(slot) {
   if(slot.match(/^[A-L][12]$/)) {
     const grp=slot[0], pos=parseInt(slot[1])-1;
@@ -2192,7 +2305,17 @@ function getSlotTeam(slot) {
     if(!anyPlayed) return {name: slot, preliminary: true, slot};
     const team=calcStandings(grp)[pos]?.name||null;
     if(!team) return {name: slot, preliminary: true, slot};
-    return {name: team, preliminary: !allMatchesPlayed(grp), slot};
+    // A clinched 1st place (or a fully-decided group) is confirmed early — no
+    // "(A1)" tag and not preliminary — even before all matches are played.
+    if(allMatchesPlayed(grp)) return {name: team, preliminary: false, slot};
+    if(pos===0 && clinchedFirst(grp)===team) return {name: team, preliminary: false, slot};
+    // 2nd place is confirmed only if BOTH top-2 spots are mathematically locked
+    // (i.e. exactly these two teams can occupy 1st/2nd) and this team is one.
+    if(pos===1){
+      const q=clinchedQualified(grp);
+      if(q.size>=2 && q.has(team)) return {name: team, preliminary: false, slot};
+    }
+    return {name: team, preliminary: true, slot};
   }
   return {name: slot, preliminary: true, slot};
 }
@@ -3046,13 +3169,21 @@ function renderGroups(){
   GROUP_KEYS.forEach((g,gi)=>{
     const standings=calcStandings(g);
     const matches=state.groupMatches[g];
+    // Early-clinch detection: winner (locked 1st) and the set guaranteed top-2.
+    const groupDone=allMatchesPlayed(g);
+    const clinchWinner=groupDone?standings[0]?.name:clinchedFirst(g);
+    const clinchSafe=groupDone?new Set([standings[0]?.name,standings[1]?.name].filter(Boolean)):clinchedQualified(g);
     const card=document.createElement('div');
     card.className='group-card'; card.style.animationDelay=`${gi*0.04}s`;
     const rowsHtml=standings.map((t,i)=>{
       // Check if 3rd place team qualifies as best third
       const best8thirds = allMatchesPlayed(g) ? getBestThirds().map(t=>t.name) : [];
-      const rc=i<2?'qualified-row':i===2&&best8thirds.includes(t.name)?'qualified-row':i===2?'playoff-row':'';
       const gd=t.gf-t.ga;
+      // Gold-highlight any mathematically-confirmed team (group winner OR a team
+      // guaranteed a top-2 finish). Otherwise fall back to the normal row tint.
+      const isConfirmed = (clinchWinner && t.name===clinchWinner) || (clinchSafe && clinchSafe.has(t.name));
+      const baseRc=i<2?'qualified-row':i===2&&best8thirds.includes(t.name)?'qualified-row':i===2?'playoff-row':'';
+      const rc=isConfirmed?'clinch-row':baseRc;
       return `<tr class="team-row ${rc}"><td><span class="team-rank">${i+1}</span><span class="team-squad-link" data-squad="${t.name}" style="cursor:pointer;">${tTeam(t.name)}</span></td><td>${t.w+t.d+t.l}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${gd>0?'+':''}${gd}</td><td class="pts-cell">${t.pts}</td></tr>`;
     }).join('');
     const sortedMatchIdxs=Array.from({length:matches.length},(_,i)=>i).sort((a,b)=>
@@ -3302,10 +3433,17 @@ function renderPredGroup(g, container){
   html+=`<div class="pred-standings">
     <div class="pred-stand-header"><span>${t('th_team')}</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
   const best3rds = getBest3rdGroups();
+  // Real-results clinch (not prediction-based) so the marker reflects what has
+  // actually been mathematically secured.
+  const _gDone=allMatchesPlayed(g);
+  const _clinchW=_gDone?calcStandings(g)[0]?.name:clinchedFirst(g);
+  const _clinchSafe=_gDone?new Set(calcStandings(g).slice(0,2).map(x=>x.name)):clinchedQualified(g);
   st.forEach((t,i)=>{
     const adv = i<2 || (i===2 && best3rds.has(g));
     const is3rd = i===2 && best3rds.has(g);
-    html+=`<div class="pred-srow${adv?' adv':''}${is3rd?' third-adv':''}">
+    // Gold class for any mathematically-confirmed team (real results, not preds).
+    const _confirmed = (_clinchW && t.n===_clinchW) || (_clinchSafe && _clinchSafe.has(t.n));
+    html+=`<div class="pred-srow${adv?' adv':''}${is3rd?' third-adv':''}${_confirmed?' clinch-row':''}">
       <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
