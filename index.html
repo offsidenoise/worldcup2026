@@ -140,9 +140,9 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
    "Advancing" (predicted) already owns gold here, so a CONFIRMED (clinched)
    team is shown in GREEN instead — distinct hue, and matches the Results tab's
    green "real qualification" language. Overrides the gold .adv text colors. */
-.pred-srow.clinch-row { background:rgba(46,204,113,0.12); border-left:3px solid var(--green); }
-.pred-srow.clinch-row span, .pred-srow.clinch-row .pred-team-nm, .pred-srow.clinch-row .pred-pts, .pred-srow.clinch-row .pred-rank { color:var(--green) !important; }
-.pred-srow.clinch-row .pred-qual-bar { background:var(--green); }
+.pred-srow.clinch-row { background:rgba(201,168,76,0.14); border-left:3px solid var(--accent); }
+.pred-srow.clinch-row span, .pred-srow.clinch-row .pred-team-nm, .pred-srow.clinch-row .pred-pts, .pred-srow.clinch-row .pred-rank { color:var(--accent2) !important; }
+.pred-srow.clinch-row .pred-qual-bar { background:var(--accent) !important; }
 .playoff-row { background:rgba(52,152,219,0.06); }
 .playoff-row td:first-child { border-left:3px solid var(--blue); }
 .pts-cell { font-weight:700; color:var(--accent2); }
@@ -318,17 +318,17 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .pred-stand-header span:first-child { text-align:left; }
 .pred-srow { display:grid; grid-template-columns:1fr repeat(5,36px); padding:8px 14px; border-bottom:1px solid var(--border); align-items:center; font-size:0.82rem; transition:background 0.15s; }
 .pred-srow:last-child { border-bottom:none; }
-.pred-srow.adv { background:rgba(201,168,76,0.04); }
-.pred-srow.third-adv { background: rgba(201,168,76,0.04); border-left: 2px solid rgba(201,168,76,0.4); }
+.pred-srow.adv { background:rgba(46,204,113,0.05); }
+.pred-srow.third-adv { background: rgba(46,204,113,0.05); border-left: 2px solid rgba(46,204,113,0.4); }
 .pred-srow:hover { background:rgba(255,255,255,0.03); }
 .pred-srow span { text-align:center; color:var(--muted); font-size:0.78rem; font-family:'Barlow Condensed',sans-serif; }
 .pred-srow span:first-child { text-align:left; display:flex; align-items:center; gap:6px; }
 .pred-rank { font-family:'Bebas Neue',sans-serif; font-size:1rem; color:var(--muted); width:16px; }
-.pred-rank.adv { color:var(--accent); }
+.pred-rank.adv { color:var(--green); }
 .pred-pts { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.9rem; color:var(--text); }
-.pred-qual-bar { width:3px; height:14px; background:var(--accent); border-radius:2px; flex-shrink:0; }
+.pred-qual-bar { width:3px; height:14px; background:var(--green); border-radius:2px; flex-shrink:0; }
 .pred-team-nm { font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:0.85rem; }
-.pred-team-nm.adv { color:var(--accent2); }
+.pred-team-nm.adv { color:var(--green); }
 
 /* Pred progress */
 .pred-progress-row { display:flex; justify-content:space-between; font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
@@ -620,6 +620,10 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .ov-match-grp {
   font-family:'Barlow Condensed',sans-serif; font-size:0.62rem;
   font-weight:700; letter-spacing:1px; color:var(--muted); margin-top:2px;
+}
+.ov-inline-score {
+  font-family:'Barlow Condensed',sans-serif; font-weight:700;
+  color:var(--accent); margin:0 4px; white-space:nowrap;
 }
 .ov-no-games {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
@@ -2803,13 +2807,20 @@ function ovMatchRow(m) {
   const metaParts = [dtStr, timeStr, m.venue ? tVenue(m.venue) : ''].filter(Boolean);
   const meta = metaParts.join(' · ');
 
-  const right = m.score
-    ? `<div class="ov-match-score">${m.score}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`
+  // For finished games show the score INLINE between the team names
+  // ("USA 2 – 0 Australia"); upcoming games keep "vs" and show time on the right.
+  const played = m.score && /\d/.test(m.score);
+  const dash = played ? m.score.replace(/[:-]/,'–').replace(/–/, '–') : '';
+  const mid = played
+    ? `<span class="ov-inline-score">${m.score.replace(/\s*[:\-–]\s*/,' – ')}</span>`
+    : `<span class="ov-vs">vs</span>`;
+  const right = played
+    ? `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`
     : `<div class="ov-match-right"><div class="ov-match-time">${timeStr}</div><div class="ov-match-grp">${m.grp||''}</div></div>`;
 
   return `<div class="ov-match-row">
     <div class="ov-match-teams">
-      <div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
+      <div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} ${mid} ${m.awayFlag||''} ${tTeam(m.away)}</div>
       <div class="ov-match-meta">${meta}</div>
     </div>${right}
   </div>`;
@@ -6761,6 +6772,11 @@ function ovMatchRow(m, withButtons) {
   const isPost = liveEv?.state === 'post';
   const canOpen = liveEv && (isLive || isPre || isPost);
 
+  // mid = what sits BETWEEN the team names; right = trailing block (grp / time).
+  // Finished games (post, or a stored score) show the score INLINE as
+  // "USA 2 – 0 Australia". Live games keep "vs" and show the live score+clock on
+  // the right; upcoming games keep "vs" and show kickoff time on the right.
+  let mid = `<span class="ov-vs">vs</span>`;
   let right = '';
   if (isLive) {
     const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
@@ -6769,9 +6785,11 @@ function ovMatchRow(m, withButtons) {
       <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
     </div>`;
   } else if (isPost) {
-    right = `<div class="ov-match-score">${liveEv.homeScore}–${liveEv.awayScore}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
+    mid = `<span class="ov-inline-score">${liveEv.homeScore} – ${liveEv.awayScore}</span>`;
+    right = `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else if (m.score) {
-    right = `<div class="ov-match-score">${m.score}</div><div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
+    mid = `<span class="ov-inline-score">${m.score.replace(/\s*[:\-–]\s*/,' – ')}</span>`;
+    right = `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else {
     right = `<div class="ov-match-right"><div class="ov-match-time">${timeStr}</div><div class="ov-match-grp">${m.grp||''}</div></div>`;
   }
@@ -6782,7 +6800,7 @@ function ovMatchRow(m, withButtons) {
 
   return `<div class="ov-match-row${liveClass}" ${clickAttr}>
     <div class="ov-match-teams">
-      ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} <span class="ov-vs">vs</span> ${m.awayFlag||''} ${tTeam(m.away)}</div>
+      ${matchLbl}<div class="ov-teams-line">${m.homeFlag||''} ${tTeam(m.home)} ${mid} ${m.awayFlag||''} ${tTeam(m.away)}</div>
       <div class="ov-match-meta">${meta}</div>
     </div>${right}
   </div>`;
