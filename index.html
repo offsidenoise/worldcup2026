@@ -16,6 +16,8 @@
   --green: #2ecc71;
   --red: #e74c3c;
   --blue: #3498db;
+  --blue-light: #7db9e8;
+  --green-light: #6ee7a8;
   --text: #e8edf2;
   --muted: #7a8fa0;
   --draw-col: #94a3b8;
@@ -35,6 +37,8 @@ body.light-mode {
   --green: #1a9e52;
   --red: #c0392b;
   --blue: #2980b9;
+  --blue-light: #5da3d9;
+  --green-light: #52c98a;
   --text: #1a1a1a;
   --muted: #6b5e4e;
   --draw-col: #5a6a7a;
@@ -265,9 +269,9 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 
 /* Win prob bar */
 .prob-bar { display:flex; height:20px; border-radius:4px; overflow:hidden; gap:1px; margin-bottom:10px; background:var(--bg); }
-.prob-w1 { background:var(--green); border-radius:4px 0 0 4px; display:flex; align-items:center; justify-content:center; min-width:0; overflow:hidden; }
+.prob-w1 { background:var(--green-light); border-radius:4px 0 0 4px; display:flex; align-items:center; justify-content:center; min-width:0; overflow:hidden; }
 .prob-dr { background:var(--draw-col); display:flex; align-items:center; justify-content:center; min-width:0; overflow:hidden; }
-.prob-w2 { background:var(--red); border-radius:0 4px 4px 0; display:flex; align-items:center; justify-content:center; min-width:0; overflow:hidden; }
+.prob-w2 { background:var(--blue-light); border-radius:0 4px 4px 0; display:flex; align-items:center; justify-content:center; min-width:0; overflow:hidden; }
 .prob-lbl { font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; font-weight:700; color:rgba(255,255,255,0.9); white-space:nowrap; pointer-events:none; }
 
 /* Pick buttons */
@@ -285,10 +289,10 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
   color:var(--muted); cursor:pointer; transition:all 0.15s; text-transform:uppercase;
 }
 .pick-btn:hover, .pick-btn-draw:hover { border-color:#3d4f6e; color:var(--text); }
-.pick-btn.home-on  { border-color:var(--green); color:var(--green); background:rgba(46,204,113,0.08); }
+.pick-btn.home-on  { border-color:var(--green-light); color:var(--green-light); background:rgba(110,231,168,0.12); }
 .pick-btn.auto-pick { opacity:0.45; }
 .pick-btn-draw.draw-on { border-color:var(--draw-col); color:var(--draw-col); background:rgba(148,163,184,0.08); }
-.pick-btn.away-on  { border-color:var(--red); color:var(--red); background:rgba(239,68,68,0.08); }
+.pick-btn.away-on  { border-color:var(--blue-light); color:var(--blue-light); background:rgba(125,185,232,0.12); }
 
 /* Locked result badge */
 .result-locked { 
@@ -1031,6 +1035,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
     <div id="res-groups-pane">
       <div class="section-sub" id="res-sub-groups" data-i18n="res_sub_groups" style="margin-bottom:16px;">Enter scores for played matches. Standings and bracket update automatically.</div>
       <div class="legend" style="margin-bottom:16px;">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div><span id="legend-clinched">Confirmed (clinched)</span></div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="legend-top2">Qualified (Top 2)</span></div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--green); opacity:0.6"></div><span id="legend-best3rd">Best 3rd (qualified)</span></div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div><span id="legend-3rd">Play-in eligible (3rd)</span></div>
@@ -2233,71 +2238,115 @@ function _withHypotheticalScores(group, assignments, fn){
 // away-win. We attach representative scorelines; to stress goal difference we
 // test two margins per decisive result (narrow 1-0 and wide 3-0) so a clinch
 // claim must survive both small and large swings.
-function _enumerateScenarios(group){
-  const rem=_groupRemainingIdx(group);
+function _outcomeCombos(n){
+  // All 3^n outcome tuples (0=home win,1=draw,2=away win) for n remaining matches.
+  if(n===0) return [[]];
+  const rest=_outcomeCombos(n-1);
+  const out=[];
+  for(const r of rest){ for(let o=0;o<3;o++) out.push([o,...r]); }
+  return out;
+}
+// Compute final points for every team given a set of outcomes for the remaining
+// matches. Outcomes are applied to the remaining-match indices in order.
+function _projectPoints(group, remIdx, outcomes){
   const ms=state.groupMatches[group];
-  // outcome codes: 0=home win, 1=draw, 2=away win; margins tested for wins
-  const marginPairs=[[1,0],[3,0]]; // [winnerGoals, loserGoals]
-  let scenarios=[[]];
-  rem.forEach(idx=>{
-    const next=[];
-    scenarios.forEach(prefix=>{
-      // home win (two margins)
-      marginPairs.forEach(([w,l])=>next.push([...prefix,{idx,hs:w,as:l}]));
-      // draw (two scorelines: 0-0 and 2-2 to vary GF)
-      next.push([...prefix,{idx,hs:0,as:0}]);
-      next.push([...prefix,{idx,hs:2,as:2}]);
-      // away win (two margins)
-      marginPairs.forEach(([w,l])=>next.push([...prefix,{idx,hs:l,as:w}]));
-    });
-    scenarios=next;
+  const pts={}; GROUPS[group].forEach(t=>pts[t]=0);
+  // points already earned
+  ms.forEach(m=>{
+    if(m.homeScore===null) return;
+    if(m.homeScore>m.awayScore) pts[m.home]+=3;
+    else if(m.homeScore<m.awayScore) pts[m.away]+=3;
+    else { pts[m.home]++; pts[m.away]++; }
   });
-  return scenarios;
+  remIdx.forEach((idx,k)=>{
+    const m=ms[idx], o=outcomes[k];
+    if(o===0) pts[m.home]+=3;
+    else if(o===2) pts[m.away]+=3;
+    else { pts[m.home]++; pts[m.away]++; }
+  });
+  return pts;
+}
+// A team has CLINCHED 1st iff, in every outcome combination, no other team can
+// finish with MORE points, and any team that could TIE on points cannot also
+// beat it on the head-to-head/GD tiebreak under that team's most favorable
+// realizable goal swing. We treat a possible points-tie as "not clinched" unless
+// the leader already dominates head-to-head — i.e. we are deliberately
+// conservative: only declare clinched when 1st is impossible to lose.
+// Implementation: leader clinches iff in EVERY outcome combo the leader's points
+// are strictly greater than every other team's MAXIMUM achievable points in that
+// combo... which simplifies to: leader's guaranteed points > every rival's max
+// possible points overall. We compute that directly.
+function _maxPossiblePoints(group){
+  const ms=state.groupMatches[group];
+  const cur={}; GROUPS[group].forEach(t=>cur[t]=0);
+  const remForTeam={}; GROUPS[group].forEach(t=>remForTeam[t]=0);
+  ms.forEach(m=>{
+    if(m.homeScore===null){ remForTeam[m.home]++; remForTeam[m.away]++; return; }
+    if(m.homeScore>m.awayScore) cur[m.home]+=3;
+    else if(m.homeScore<m.awayScore) cur[m.away]+=3;
+    else { cur[m.home]++; cur[m.away]++; }
+  });
+  const max={}; GROUPS[group].forEach(t=>max[t]=cur[t]+remForTeam[t]*3);
+  return {cur, max};
 }
 function clinchedFirst(group){
-  const rem=_groupRemainingIdx(group);
-  if(rem.length===0){
-    // All played — the standings leader is simply the winner.
-    return calcStandings(group)[0]?.name||null;
-  }
-  // Current leader (by real results so far). If nobody has played, no clinch.
-  const anyPlayed=(state.groupMatches[group]||[]).some(m=>m.homeScore!==null);
+  const ms=state.groupMatches[group]||[];
+  const remIdx=[]; ms.forEach((m,i)=>{ if(m.homeScore===null) remIdx.push(i); });
+  if(remIdx.length===0){ return calcStandings(group)[0]?.name||null; }
+  const anyPlayed=ms.some(m=>m.homeScore!==null);
   if(!anyPlayed) return null;
-  const leader=calcStandings(group)[0]?.name;
-  if(!leader) return null;
-  // Cap scenario blowup: with marginPairs the branching is up to 6 per match;
-  // group stage has at most 3 remaining → 6^3 = 216, fine. Guard anyway.
-  if(rem.length>3) return null;
-  const scenarios=_enumerateScenarios(group);
-  for(const sc of scenarios){
-    const top=_withHypotheticalScores(group, sc, ()=>calcStandings(group)[0]?.name);
-    if(top!==leader) return null; // some scenario dethrones the leader
+  const leader=calcStandings(group)[0]?.name; if(!leader) return null;
+  if(remIdx.length>4) return null;
+  // Enumerate every outcome combo of the remaining matches. For each, apply
+  // hypothetical scores using a LARGE margin on decisive results so any rival
+  // who could overtake on goal difference is given their best realistic case.
+  // The leader has clinched 1st only if it finishes 1st in EVERY such combo.
+  const combos=_outcomeCombos(remIdx.length);
+  for(const combo of combos){
+    const assignments=remIdx.map((idx,k)=>{
+      const o=combo[k];
+      if(o===0) return {idx, hs:5, as:0};      // home win, big margin
+      if(o===2) return {idx, hs:0, as:5};      // away win, big margin
+      return {idx, hs:0, as:0};                // draw
+    });
+    const top=_withHypotheticalScores(group, assignments, ()=>calcStandings(group)[0]?.name);
+    if(top!==leader) return null;
   }
   return leader;
 }
 function clinchedQualified(group){
-  // Set of teams that cannot finish below 2nd in any scenario.
-  const rem=_groupRemainingIdx(group);
+  // A team is GUARANTEED top-2 iff, across EVERY outcome combination of the
+  // remaining matches, it finishes 1st or 2nd by POINTS — counting a points tie
+  // AGAINST it (i.e. if it can be tied and possibly lose the GD tiebreak, it is
+  // not yet safe). This is the conservative, mathematically-sound test.
+  const ms=state.groupMatches[group]||[];
+  const remIdx=[]; ms.forEach((m,i)=>{ if(m.homeScore===null) remIdx.push(i); });
   const teams=GROUPS[group];
-  if(rem.length===0){
+  if(remIdx.length===0){
     const st=calcStandings(group);
     return new Set([st[0]?.name, st[1]?.name].filter(Boolean));
   }
-  const anyPlayed=(state.groupMatches[group]||[]).some(m=>m.homeScore!==null);
+  const anyPlayed=ms.some(m=>m.homeScore!==null);
   if(!anyPlayed) return new Set();
-  if(rem.length>3) return new Set();
-  const scenarios=_enumerateScenarios(group);
-  // A team qualifies-for-sure if it is in the top 2 in EVERY scenario.
+  if(remIdx.length>4) return new Set();
+  const combos=_outcomeCombos(remIdx.length);
   const safe=new Set(teams);
-  for(const sc of scenarios){
-    const st=_withHypotheticalScores(group, sc, ()=>calcStandings(group));
-    const top2=new Set([st[0]?.name, st[1]?.name]);
-    for(const t of [...safe]){ if(!top2.has(t)) safe.delete(t); }
+  for(const combo of combos){
+    const pts=_projectPoints(group, remIdx, combo);
+    teams.forEach(team=>{
+      if(!safe.has(team)) return;
+      // Count how many teams have STRICTLY MORE points, and how many can TIE.
+      let strictlyAbove=0, tied=0;
+      teams.forEach(o=>{ if(o===team) return; if(pts[o]>pts[team]) strictlyAbove++; else if(pts[o]===pts[team]) tied++; });
+      // Worst case for "team": every tied rival could edge it on GD. So team is
+      // only guaranteed top-2 if (strictlyAbove + tied) <= 1 in this combo
+      // — i.e. at most one other team can be ranked above it even pessimistically.
+      if(strictlyAbove + tied > 1) safe.delete(team);
+    });
     if(safe.size===0) break;
   }
   return safe;
 }
-
 function getSlotTeam(slot) {
   if(slot.match(/^[A-L][12]$/)) {
     const grp=slot[0], pos=parseInt(slot[1])-1;
@@ -3205,7 +3254,7 @@ function renderGroups(){
         <div class="match-row-inner">
           <div class="match-main">
             <div class="match-team${played?(homeW?' res-winner':' res-loser'):''}">${tTeam(m.home)}</div>
-            <div class="score-box"><div class="score-btn">${played?m.homeScore:'·'}</div><div class="score-sep">:</div><div class="score-btn">${played?m.awayScore:'·'}</div></div>
+            <div class="score-box"><div class="score-btn">${played?m.homeScore:'·'}</div><div class="score-sep">${played?'–':':'}</div><div class="score-btn">${played?m.awayScore:'·'}</div></div>
             <div class="match-team right${played?(awayW?' res-winner':' res-loser'):''}">${tTeam(m.away)}</div>
           </div>
           ${dateTimeStr?`<div class="match-meta-line">${dateTimeStr}</div>`:''}${metaVenue?`<div class="match-meta-line">${metaVenue}</div>`:''}
@@ -5709,6 +5758,7 @@ const STRINGS = {
   // Qualified teams
   qual_teams:          {en:'Qualified Teams',        es:'Equipos Clasificados'},
   qual_complete:       {en:'Complete group matches to see qualifiers', es:'Completa partidos de grupos para ver clasificados'},
+  qual_legend_clinched:{en:'Confirmed (clinched)',   es:'Confirmado (asegurado)'},
   qual_legend_top2:    {en:'Qualified (Top 2)',       es:'Clasificado (Top 2)'},
   qual_legend_best3rd: {en:'Best 3rd (qualified)',   es:'Mejor 3ro (clasificado)'},
   qual_legend_3rd:     {en:'Play-in eligible (3rd)', es:'Repechaje (3ro)'},
@@ -5887,6 +5937,8 @@ function updateStaticLabels() {
     if(subEl)   subEl.textContent   = t(subKey);
   });
   // Legend items
+  const legClinched= document.getElementById('legend-clinched');
+  if(legClinched) legClinched.textContent = t('qual_legend_clinched');
   const legTop2    = document.getElementById('legend-top2');
   const legBest3rd = document.getElementById('legend-best3rd');
   const leg3rd     = document.getElementById('legend-3rd');
