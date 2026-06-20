@@ -2546,12 +2546,21 @@ function buildPredKOTeams() {
   );
   b3=b3.slice(0,8);
 
-  // R32 slots
+  // Assign the 8 qualifying thirds to their R32 slots using the OFFICIAL FIFA
+  // Annex C table (getThirdPlaceSlots), exactly like the real-results bracket —
+  // NOT a positional b3[0..7] shortcut, which ignored the allowed-group rule and
+  // could (e.g.) hand Mexico a group that Annex C would never assign to slot 79.
+  // slotMap maps R32 matchNum -> group letter; pull that group's 3rd-place team.
+  const b3byGrp={}; b3.forEach(t=>{ b3byGrp[t.grp]=t; });
+  const slotMap=getThirdPlaceSlots(b3.map(t=>t.grp));   // {matchNum: groupLetter}
+  const third=mn=>{ const g=slotMap[mn]; return g?b3byGrp[g]:null; };
+
+  // R32 slots (3rd-place opponents resolved via Annex C by match number)
   const r32=[
-    [st.A[1],st.B[1]],[st.E[0],b3[0]],[st.F[0],st.C[1]],[st.C[0],st.F[1]],
-    [st.I[0],b3[1]],[st.E[1],st.I[1]],[st.A[0],b3[2]],[st.L[0],b3[3]],
-    [st.D[0],b3[4]],[st.G[0],b3[5]],[st.K[1],st.L[1]],[st.H[0],st.J[1]],
-    [st.B[0],b3[6]],[st.J[0],st.H[1]],[st.K[0],b3[7]],[st.D[1],st.G[1]]
+    [st.A[1],st.B[1]],   [st.E[0],third(74)], [st.F[0],st.C[1]],  [st.C[0],st.F[1]],
+    [st.I[0],third(77)], [st.E[1],st.I[1]],   [st.A[0],third(79)],[st.L[0],third(80)],
+    [st.D[0],third(81)], [st.G[0],third(82)], [st.K[1],st.L[1]],  [st.H[0],st.J[1]],
+    [st.B[0],third(85)], [st.J[0],st.H[1]],   [st.K[0],third(87)],[st.D[1],st.G[1]]
   ];
 
   // Teams array indexed 0–30 matching KO bracket order
