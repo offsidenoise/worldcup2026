@@ -2604,7 +2604,17 @@ function buildPredBracket() {
   GROUP_KEYS.forEach(g=>st[g]=calcPredStandings(g));
   let b3=[];
   GROUP_KEYS.forEach(g=>{const t=st[g][2];if(t)b3.push({...t,grp:g});});
-  b3.sort((a,b)=>b.pts-a.pts||compositeStrength(b.n)-compositeStrength(a.n));
+  // Rank the third-place teams by FIFA criteria: points → goal difference →
+  // goals for → (composite strength as the final deterministic fallback, since
+  // predictions have no fair-play/lots data). Must match getBestThirds so the
+  // SET of 8 qualifying thirds — and thus the Annex C slot assignment — is
+  // computed the same way as the real-results bracket.
+  b3.sort((a,b)=>
+    (b.pts-a.pts) ||
+    ((b.gd||0)-(a.gd||0)) ||
+    ((b.gf||0)-(a.gf||0)) ||
+    (compositeStrength(b.n)-compositeStrength(a.n))
+  );
   b3=b3.slice(0,8);
 
   // slot → team name
