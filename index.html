@@ -625,6 +625,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   font-family:'Barlow Condensed',sans-serif; font-weight:700;
   color:var(--accent); margin:0 4px; white-space:nowrap;
 }
+.ov-inline-score-live { color:#e63946; }
 .ov-no-games {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
   padding:12px 14px; margin-bottom:14px;
@@ -6773,15 +6774,16 @@ function ovMatchRow(m, withButtons) {
   const canOpen = liveEv && (isLive || isPre || isPost);
 
   // mid = what sits BETWEEN the team names; right = trailing block (grp / time).
-  // Finished games (post, or a stored score) show the score INLINE as
-  // "USA 2 – 0 Australia". Live games keep "vs" and show the live score+clock on
-  // the right; upcoming games keep "vs" and show kickoff time on the right.
+  // ALL games with a score show it INLINE between the team names
+  // ("Brazil 3 – 0 Haiti"). Live games show the score inline in red, with just
+  // the pulsing clock/minute on the right; finished games show it in gold with
+  // the group label on the right; upcoming games keep "vs" + kickoff time.
   let mid = `<span class="ov-vs">vs</span>`;
   let right = '';
   if (isLive) {
     const ht = liveEv.stateDesc?.toLowerCase().includes('half') && liveEv.clock === '';
+    mid = `<span class="ov-inline-score ov-inline-score-live">${liveEv.homeScore} – ${liveEv.awayScore}</span>`;
     right = `<div class="ov-match-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-      <div class="ov-score-live">${liveEv.homeScore}–${liveEv.awayScore}</div>
       <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
     </div>`;
   } else if (isPost) {
