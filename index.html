@@ -5095,6 +5095,17 @@ function _applyMatchDetailsFromSummary(sj){
   });
   const teamCards={};
   Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
+  const rosterTeamById={}, rosterTeamByName={};
+  (sj.rosters||[]).forEach(r=>{
+    const tNm=normalizeESPNTeam(r.team?.displayName||r.team?.name||'');
+    if(!tNm) return;
+    (r.roster||[]).forEach(en=>{
+      const a=en.athlete||{};
+      if(a.id) rosterTeamById[a.id]=tNm;
+      const nm=a.displayName||a.shortName||a.fullName;
+      if(nm) rosterTeamByName[nm.toLowerCase()]=tNm;
+    });
+  });
   const matchScorers=[];
   for(const ev of (sj.keyEvents||[])){
     const tt=(ev.type?.text||ev.type?.id||'').toLowerCase();
@@ -5104,14 +5115,17 @@ function _applyMatchDetailsFromSummary(sj){
     if(ev.scoringPlay===true){
       const scorer=parts[0];
       const pName=scorer?.athlete?.displayName||scorer?.athlete?.fullName||scorer?.athlete?.shortName;
-      // Prefer the ATHLETE's own team. For own goals ESPN often tags the
-                // scoring play / event team as the BENEFITING team, which would
-                // double-flip our OG logic; the athlete record still points to
-                // the scorer's real team, keeping the OG flip correct.
-                const scorerTeam=teamById[scorer?.athlete?.team?.id]||teamById[scorer?.team?.id]||evTeam;
       const isOG=tt.includes('own goal')||ev.ownGoal===true;
       const isPen=ev.penaltyKick===true||tt.includes('penalty');
-      if(pName) matchScorers.push({name:pName,min,og:isOG,pen:isPen,scorerTeam});
+      // The scorer's REAL team, from the authoritative ROSTER map (by athlete
+      // id, then by name), falling back to ESPN team tags only if rosters are
+      // absent. For an own goal the benefit goes to the OPPONENT (computed from
+      // the two match teams below), so the real team must be the scorer's own.
+      const realTeam = rosterTeamById[scorer?.athlete?.id]
+                    || rosterTeamByName[(pName||'').toLowerCase()]
+                    || teamById[scorer?.athlete?.team?.id]
+                    || teamById[scorer?.team?.id] || evTeam;
+      if(pName) matchScorers.push({name:pName,min,og:isOG,pen:isPen,realTeam});
     }
     if(tt.includes('yellow')){
       for(const a of parts){const tName=teamById[a.athlete?.team?.id]||teamById[a.team?.id]||evTeam;if(tName&&teamCards[tName])teamCards[tName].y++;}
@@ -5138,8 +5152,10 @@ function _applyMatchDetailsFromSummary(sj){
         if(cardsForAway){m.awayYellow=cardsForAway.y;m.awayRed=cardsForAway.r;}
         const homeScorers=[], awayScorers=[];
         matchScorers.forEach(s=>{
-          const scoredForStoredHome = namesMatch(s.scorerTeam, m.home);
-          const benefitsHome = s.og ? !scoredForStoredHome : scoredForStoredHome;
+          // Benefiting side: scorer's real team for a normal goal; the OPPONENT
+          // for an own goal. Determined purely from the match's two teams.
+          const scoredByHome = namesMatch(s.realTeam, m.home);
+          const benefitsHome = s.og ? !scoredByHome : scoredByHome;
           const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
           (benefitsHome?homeScorers:awayScorers).push(label);
         });
@@ -6211,6 +6227,17 @@ async function globalRefresh(){
             });
             const teamCards={};
             Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
+            const rosterTeamById={}, rosterTeamByName={};
+            (sumJson.rosters||[]).forEach(r=>{
+              const tNm=normalizeESPNTeam(r.team?.displayName||r.team?.name||'');
+              if(!tNm) return;
+              (r.roster||[]).forEach(en=>{
+                const a=en.athlete||{};
+                if(a.id) rosterTeamById[a.id]=tNm;
+                const nm=a.displayName||a.shortName||a.fullName;
+                if(nm) rosterTeamByName[nm.toLowerCase()]=tNm;
+              });
+            });
             const matchScorers=[];  // {name, min, og, team}
 
             // ── Card log capture (per-match, for accurate suspension tracking) ──
@@ -6246,16 +6273,18 @@ async function globalRefresh(){
               if(ev.scoringPlay===true){
                 const scorer=parts[0];
                 const pName=scorer?.athlete?.displayName||scorer?.athlete?.fullName||scorer?.athlete?.shortName;
-                // Prefer the ATHLETE's own team. For own goals ESPN often tags the
-                // scoring play / event team as the BENEFITING team, which would
-                // double-flip our OG logic; the athlete record still points to
-                // the scorer's real team, keeping the OG flip correct.
-                const scorerTeam=teamById[scorer?.athlete?.team?.id]||teamById[scorer?.team?.id]||evTeam;
                 const isOG=tt.includes('own goal')||ev.ownGoal===true;
                 const isPen=ev.penaltyKick===true||tt.includes('penalty');
+                // The scorer's REAL team, from the authoritative ROSTER map
+                // (by athlete id, then name), with ESPN tags as fallback. OG
+                // benefit goes to the OPPONENT, computed from match teams below.
+                const realTeam = rosterTeamById[scorer?.athlete?.id]
+                              || rosterTeamByName[(pName||'').toLowerCase()]
+                              || teamById[scorer?.athlete?.team?.id]
+                              || teamById[scorer?.team?.id] || evTeam;
                 if(pName){
-                  matchScorers.push({ name:pName, min, og:isOG, pen:isPen, scorerTeam });
-                  if(!isOG) addStatToPlayer(pName,scorerTeam,1,0,0,newPlayers);
+                  matchScorers.push({ name:pName, min, og:isOG, pen:isPen, realTeam });
+                  if(!isOG) addStatToPlayer(pName,realTeam,1,0,0,newPlayers);
                 }
               }
               if(tt.includes('yellow')){
@@ -6295,11 +6324,12 @@ async function globalRefresh(){
                                      : teamCards[aNm] && namesMatch(m.away,aNm) ? teamCards[aNm] : null;
                   if(cardsForHome){m.homeYellow=cardsForHome.y;m.homeRed=cardsForHome.r;}
                   if(cardsForAway){m.awayYellow=cardsForAway.y;m.awayRed=cardsForAway.r;}
-                  // Scorers: decide the benefiting side by team name. Own goals flip.
+                  // Scorers: scorer's real team for a normal goal; the OPPONENT
+                  // for an own goal. Determined purely from the match's teams.
                   const homeScorers=[], awayScorers=[];
                   matchScorers.forEach(s=>{
-                    const scoredForStoredHome = namesMatch(s.scorerTeam, m.home);
-                    const benefitsHome = s.og ? !scoredForStoredHome : scoredForStoredHome;
+                    const scoredByHome = namesMatch(s.realTeam, m.home);
+                    const benefitsHome = s.og ? !scoredByHome : scoredByHome;
                     const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
                     (benefitsHome?homeScorers:awayScorers).push(label);
                   });
