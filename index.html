@@ -1891,6 +1891,29 @@ function loadState() {
     });
     state._orientMigrated=true;
   }
+  // One-time own-goal side correction. Earlier builds attributed an own goal to
+  // the SCORER's team rather than the team that BENEFITS from it. Move any
+  // stored "(OG)" scorer entry to the opposite side so it sits with the team
+  // that was credited the goal. Guarded so it runs at most once and does not
+  // re-flip data already stored correctly by the fixed aggregation logic.
+  if(!state._ogMigrated){
+    GROUP_KEYS.forEach(g=>{
+      const stored=state.groupMatches?.[g];
+      if(!stored) return;
+      stored.forEach(m=>{
+        if(!m) return;
+        const hsc=m.homeScorers||[], asc=m.awayScorers||[];
+        if(!hsc.length && !asc.length) return;
+        const isOG=s=>typeof s==='string' && s.includes('(OG)');
+        const newHome=[], newAway=[];
+        // Home-side OGs belong on the away side; non-OGs stay.
+        hsc.forEach(s=>{ (isOG(s)?newAway:newHome).push(s); });
+        asc.forEach(s=>{ (isOG(s)?newHome:newAway).push(s); });
+        m.homeScorers=newHome; m.awayScorers=newAway;
+      });
+    });
+    state._ogMigrated=true;
+  }
 }
 
 // ============================================================
