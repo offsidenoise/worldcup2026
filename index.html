@@ -6228,7 +6228,7 @@ async function globalRefresh(){
             const teamCards={};
             Object.values(teamById).forEach(nm=>{ if(nm) teamCards[nm]={y:0,r:0}; });
             const rosterTeamById={}, rosterTeamByName={};
-            (sumJson.rosters||[]).forEach(r=>{
+            (sj.rosters||[]).forEach(r=>{
               const tNm=normalizeESPNTeam(r.team?.displayName||r.team?.name||'');
               if(!tNm) return;
               (r.roster||[]).forEach(en=>{
