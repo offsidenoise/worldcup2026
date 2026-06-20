@@ -6769,8 +6769,13 @@ function ovMatchRow(m, withButtons) {
   const meta = metaParts.join(' · ');
 
   const isLive = liveEv?.state === 'in';
-  const isPre  = liveEv?.state === 'pre';
+  const isPreRaw = liveEv?.state === 'pre';
   const isPost = liveEv?.state === 'post';
+  // ESPN can mark a match "pre" many hours before kickoff. Only treat it as a
+  // pre-game we can open (lineups/countdown) when kickoff is within 60 minutes —
+  // otherwise it's just a normal upcoming row and shouldn't open the live modal.
+  const minsToKick = m.kickoffDt ? Math.round((m.kickoffDt.getTime() - Date.now())/60000) : Infinity;
+  const isPre = isPreRaw && minsToKick <= 60 && minsToKick > -10;
   const canOpen = liveEv && (isLive || isPre || isPost);
 
   // mid = what sits BETWEEN the team names; right = trailing block (grp / time).
