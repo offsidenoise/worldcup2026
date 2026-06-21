@@ -893,6 +893,35 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   letter-spacing:1px; text-transform:uppercase; padding:7px 10px; border-radius:8px; cursor:pointer;
   border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; }
 .lm-toggle-btn.active { background:var(--accent); color:#1a1205; border-color:var(--accent); }
+/* ── Lineup pitch view ── */
+#lm-lineup-view { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:10px 12px 30px; flex:1; }
+.ln-tba { text-align:center; color:var(--muted); font-family:'Barlow Condensed',sans-serif;
+  font-size:1rem; letter-spacing:1px; text-transform:uppercase; padding:48px 12px; }
+.ln-team-label { display:flex; align-items:center; gap:8px; margin:10px 2px 6px;
+  font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.9rem; letter-spacing:0.5px; }
+.ln-team-label .ln-form { color:var(--muted); font-weight:600; font-size:0.78rem; }
+.ln-pitch { position:relative; background:linear-gradient(170deg,#1f6b3a,#15532c);
+  border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px 6px;
+  display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+.ln-pitch::before { content:''; position:absolute; left:8%; right:8%; top:50%; height:1px;
+  background:rgba(255,255,255,0.18); }
+.ln-pitch::after { content:''; position:absolute; left:50%; top:50%; width:54px; height:54px;
+  transform:translate(-50%,-50%); border:1px solid rgba(255,255,255,0.18); border-radius:50%; }
+.ln-row { display:flex; justify-content:space-around; align-items:flex-start; gap:4px; position:relative; z-index:1; }
+.ln-player { display:flex; flex-direction:column; align-items:center; width:58px; }
+.ln-jersey { position:relative; width:38px; height:38px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1rem; color:#fff;
+  background:var(--blue); box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+.ln-jersey.gk { background:#444; }
+.ln-name { margin-top:3px; font-size:0.62rem; line-height:1.1; text-align:center; color:#fff;
+  max-width:58px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  background:rgba(0,0,0,0.35); border-radius:3px; padding:1px 3px; }
+.ln-badge { position:absolute; top:-5px; right:-5px; font-size:0.6rem; line-height:1;
+  background:var(--card); border-radius:6px; padding:1px 2px; }
+.ln-sub-in { position:absolute; bottom:-4px; left:-4px; font-size:0.55rem; color:#6ee7a8; }
+.ln-half-home .ln-jersey { background:var(--blue); }
+.ln-half-away .ln-jersey { background:#b8333a; }
 /* Stats comparison view */
 .sm-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px 30px; flex:1; }
 .sm-stats-wrap { display:flex; flex-direction:column; gap:14px; padding-top:6px; }
@@ -1148,12 +1177,14 @@ body.light-mode .stats-tbl th { background:var(--bg); }
         <div class="lm-score-line" id="lm-score-line"></div>
         <div id="lm-status-line" style="margin-top:4px;font-size:0.75rem;color:var(--muted)"></div>
         <div class="lm-toggle" id="lm-toggle">
-          <button class="lm-toggle-btn active" id="lm-tab-squad" onclick="lmSetView('squad')" data-i18n="btn_squad">Squad</button>
           <button class="lm-toggle-btn" id="lm-tab-stats" onclick="lmSetView('stats')" data-i18n="btn_stats">Stats</button>
+          <button class="lm-toggle-btn active" id="lm-tab-squad" onclick="lmSetView('squad')" data-i18n="btn_squad">Squad</button>
+          <button class="lm-toggle-btn" id="lm-tab-lineup" onclick="lmSetView('lineup')" data-i18n="btn_lineup">Lineup</button>
         </div>
       </div>
       <div class="lm-cols" id="lm-cols"></div>
       <div class="sm-body" id="lm-stats-view" style="display:none;"></div>
+      <div id="lm-lineup-view" style="display:none;"></div>
     </div>
   </div>
 
@@ -5785,6 +5816,9 @@ const STRINGS = {
   coach:        {en:'Coach',     es:'Entrenador'},
   btn_squad:        {en:'Squad',        es:'Plantel'},
   btn_stats:        {en:'Stats',        es:'Estadísticas'},
+  btn_lineup:       {en:'Lineup',       es:'Alineación'},
+  lineup_tba:       {en:'To Be Announced', es:'Por confirmar'},
+  squad_tba:        {en:'To Be Announced', es:'Por confirmar'},
   stat_match_stats: {en:'Match stats',  es:'Estadísticas del partido'},
   stat_none:        {en:'No stats available yet', es:'Aún no hay estadísticas'},
   stat_possession:  {en:'Possession',   es:'Posesión'},
@@ -6905,16 +6939,17 @@ function lmOpen(eventId) {
   _lmCurrentEvent = eventId;
   document.getElementById('lm-overlay').classList.add('open');
   lmRender(eventId);
-  // Always open on the Squad view; show the Stats tab only if stats exist.
   const ev = _liveEvents[eventId];
-  const hasStats = !!(ev && ev.stats && ev.stats.order && ev.stats.order.length);
-  const hasGoals = !!(ev && ((ev.goals && Object.keys(ev.goals).length) || (ev.ownGoals && Object.keys(ev.ownGoals).length)));
-  const showToggle = hasStats || hasGoals;
+  // Stats only make sense once the game has started: hide the Stats tab while the
+  // match is still pre-kickoff. Squad and Lineup are always shown (each falls
+  // back to "To Be Announced" when its data isn't available yet).
+  const isPre = ev && ev.state === 'pre';
   const tabStats = document.getElementById('lm-tab-stats');
   const toggle = document.getElementById('lm-toggle');
-  if (tabStats) tabStats.style.display = showToggle ? '' : 'none';
-  if (toggle) toggle.style.display = showToggle ? '' : 'none';
-  lmSetView('squad');
+  if (tabStats) tabStats.style.display = isPre ? 'none' : '';
+  if (toggle) toggle.style.display = '';
+  // Default tab: Squad before kickoff (Stats is hidden then), Stats once live.
+  lmSetView(isPre ? 'squad' : 'stats');
 }
 
 function lmClose() {
@@ -6926,19 +6961,151 @@ function lmClose() {
 function lmSetView(view) {
   const cols = document.getElementById('lm-cols');
   const statsView = document.getElementById('lm-stats-view');
+  const lineupView = document.getElementById('lm-lineup-view');
   const tabSquad = document.getElementById('lm-tab-squad');
   const tabStats = document.getElementById('lm-tab-stats');
+  const tabLineup = document.getElementById('lm-tab-lineup');
+  // hide all, clear active
+  cols.style.display = 'none';
+  statsView.style.display = 'none';
+  if (lineupView) lineupView.style.display = 'none';
+  [tabSquad, tabStats, tabLineup].forEach(t => t && t.classList.remove('active'));
   if (view === 'stats') {
-    cols.style.display = 'none';
     statsView.style.display = 'block';
-    tabSquad.classList.remove('active'); tabStats.classList.add('active');
+    if (tabStats) tabStats.classList.add('active');
     lmRenderStats(_lmCurrentEvent);
+  } else if (view === 'lineup') {
+    if (lineupView) lineupView.style.display = 'block';
+    if (tabLineup) tabLineup.classList.add('active');
+    lmRenderLineup(_lmCurrentEvent);
   } else {
     cols.style.display = '';
-    statsView.style.display = 'none';
-    tabStats.classList.remove('active'); tabSquad.classList.add('active');
+    if (tabSquad) tabSquad.classList.add('active');
   }
 }
+// Build the CURRENT on-field XI for a team: start from the 11 starters, then
+// apply substitution events (out -> in) so a subbed-on player inherits the
+// subbed-off player's pitch position. Subs are chained (if an on player later
+// goes off). Returns array of player objects, each carrying formationPlace from
+// the slot they now occupy, plus a `cameOn` flag for display.
+function _lmCurrentXI(lineup, subs, teamIds) {
+  if (!lineup || !lineup.length) return [];
+  const byId = {};
+  lineup.forEach(p => { if (p.espnId) byId[p.espnId] = p; });
+  // Starters hold the 11 pitch slots.
+  let slots = lineup.filter(p => p.starter).map(p => ({ ...p, cameOn: false }));
+  if (!slots.length) slots = lineup.slice(0, 11).map(p => ({ ...p, cameOn: false }));
+  // Apply subs in chronological order, only those involving THIS team.
+  const teamSet = new Set(teamIds || []);
+  const relevant = (subs || [])
+    .filter(s => {
+      const outId = s.out?.id, inId = s.in?.id;
+      return (outId && teamSet.has(String(outId))) || (inId && teamSet.has(String(inId)));
+    })
+    .sort((a, b) => (parseInt(a.min) || 0) - (parseInt(b.min) || 0));
+  relevant.forEach(s => {
+    const outId = s.out?.id ? String(s.out.id) : null;
+    const inId = s.in?.id ? String(s.in.id) : null;
+    if (!inId) return;
+    const idx = outId ? slots.findIndex(p => String(p.espnId) === outId) : -1;
+    const inPlayer = byId[inId] || {
+      espnId: inId, name: s.in?.displayName || s.in?.shortName || '', jersey: s.in?.jersey || '',
+      position: '', formationPlace: null
+    };
+    if (idx >= 0) {
+      // inherit the outgoing player's pitch slot
+      slots[idx] = { ...inPlayer, formationPlace: slots[idx].formationPlace, position: slots[idx].position || inPlayer.position, cameOn: true };
+    } else {
+      slots.push({ ...inPlayer, cameOn: true });
+    }
+  });
+  return slots;
+}
+
+// Group an XI into pitch rows (GK at the back, then defenders, mids, forwards).
+// Uses position abbreviations when present; otherwise falls back to evenly
+// splitting by formationPlace order.
+function _lmFormationRows(xi) {
+  if (!xi.length) return [];
+  const cat = p => {
+    const pos = (p.position || '').toUpperCase();
+    if (/GK|G$/.test(pos)) return 0;
+    if (/(CB|RB|LB|RWB|LWB|D)/.test(pos)) return 1;
+    if (/(DM|CM|AM|RM|LM|M)/.test(pos)) return 2;
+    if (/(CF|ST|RW|LW|F|W)/.test(pos)) return 3;
+    return 2;
+  };
+  const hasPos = xi.some(p => p.position);
+  let rows;
+  if (hasPos) {
+    rows = [[], [], [], []];
+    xi.forEach(p => rows[cat(p)].push(p));
+    rows = rows.filter(r => r.length);
+  } else {
+    // No positions: order by formationPlace and chunk into GK + 3 lines.
+    const ordered = [...xi].sort((a, b) => (a.formationPlace || 0) - (b.formationPlace || 0));
+    const gk = ordered.slice(0, 1);
+    const rest = ordered.slice(1);
+    const third = Math.ceil(rest.length / 3);
+    rows = [gk, rest.slice(0, third), rest.slice(third, 2 * third), rest.slice(2 * third)].filter(r => r && r.length);
+  }
+  return rows;
+}
+
+function _lmPlayerCell(p, ev, half) {
+  const num = p.jersey || '';
+  const isGK = /GK|G$/.test((p.position || '').toUpperCase());
+  // goal/card badges from parsed events keyed by espnId
+  let badge = '';
+  const g = ev.goals && ev.goals[p.espnId];
+  const og = ev.ownGoals && ev.ownGoals[p.espnId];
+  const y = ev.yellows && ev.yellows[p.espnId];
+  const r = ev.reds && ev.reds[p.espnId];
+  if (g && g.length) badge += '⚽'.repeat(Math.min(g.length, 3));
+  if (og && og.length) badge += '🥅';
+  if (r && r.length) badge += '🟥';
+  else if (y && y.length) badge += '🟨';
+  const badgeHtml = badge ? `<span class="ln-badge">${badge}</span>` : '';
+  const subHtml = p.cameOn ? `<span class="ln-sub-in">▲</span>` : '';
+  const surname = (p.name || '').split(' ').slice(-1)[0] || p.name || '';
+  return `<div class="ln-player">
+    <div class="ln-jersey ${isGK ? 'gk' : ''}">${num}${badgeHtml}${subHtml}</div>
+    <div class="ln-name">${surname}</div>
+  </div>`;
+}
+
+function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds) {
+  const xi = _lmCurrentXI(lineup, subs, teamIds);
+  if (!xi.length) {
+    return `<div class="ln-team-label">${teamName}</div><div class="ln-tba">${t('lineup_tba')}</div>`;
+  }
+  let rows = _lmFormationRows(xi);
+  // For the away half (bottom), reverse row order so forwards sit nearest the
+  // halfway line — mirrors a real pitch with the two teams facing each other.
+  if (halfClass === 'ln-half-away') rows = rows.slice().reverse();
+  const rowsHtml = rows.map(row =>
+    `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, halfClass)).join('')}</div>`
+  ).join('');
+  // Formation string from row sizes (outfield only), e.g. 4-2-3-1
+  const outfield = rows.map(r => r.filter(p => !/GK|G$/.test((p.position||'').toUpperCase())).length).filter(n => n);
+  const formStr = outfield.length ? outfield.join('-') : '';
+  return `<div class="ln-team-label">${teamName}${formStr ? ` <span class="ln-form">${formStr}</span>` : ''}</div>
+    <div class="ln-pitch ${halfClass}">${rowsHtml}</div>`;
+}
+
+function lmRenderLineup(eventId) {
+  const ev = _liveEvents[eventId];
+  const box = document.getElementById('lm-lineup-view');
+  if (!box) return;
+  if (!ev) { box.innerHTML = `<div class="ln-tba">${t('lineup_tba')}</div>`; return; }
+  const subs = ev.subs || [];
+  const homeIds = (ev.homeLineup || []).map(p => String(p.espnId));
+  const awayIds = (ev.awayLineup || []).map(p => String(p.espnId));
+  const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds);
+  const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds);
+  box.innerHTML = homeHtml + awayHtml;
+}
+
 function _lmTeamScorers(ev) {
   // Build "scorers" arrays for home and away from parsed events.
   // - A player scoring multiple times appears once, minutes joined by commas.
@@ -7064,7 +7231,7 @@ function lmRender(eventId) {
       const cs = ci ? (ci.nat ? `${ci.name} (${ci.nat})` : ci.name) : '';
       const ch = cs ? `<div class="lm-coach">${t('coach')}: <span class="lm-coach-name">${cs}</span></div>` : '';
       return `<div class="lm-col-title">${flag} ${tTeam(teamName)}</div>${ch}
-        <div class="lm-no-lineup">${ev.state === 'pre' ? 'Lineup TBA' : 'No lineup data'}</div>`;
+        <div class="lm-no-lineup">${t('squad_tba')}</div>`;
     }
     const og = ev.ownGoals || {};
     // Use per-player roster flags (reliable) with keyEvent fallback
