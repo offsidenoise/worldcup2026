@@ -2031,12 +2031,27 @@ function calcPredStandings(group) {
         if(p[1]>=28 && maxWin-p[1]<=12) return 'draw';
         return p[0]>=p[2]?'home':'away';
       })();
-      // Use predicted score if available, otherwise derive from outcome
       const scoreKey=`${group}_${mi}`;
       const sc=state.predictions.scores&&state.predictions.scores[scoreKey];
-      if(sc){ hg=sc[0]; ag=sc[1]; }
+      if(pk){
+        // Explicit USER pick is authoritative. A picked winner wins by EXACTLY
+        // ONE GOAL (1-0 / 0-1); a picked draw is 0-0. We honour the pick even if
+        // an older, contradictory stored score exists (so previously-broken
+        // picks self-correct without needing to be re-tapped). Only keep a stored
+        // score if it actually agrees with the picked outcome.
+        const agrees = sc && (
+          (pk==='home' && sc[0]>sc[1]) ||
+          (pk==='away' && sc[1]>sc[0]) ||
+          (pk==='draw' && sc[0]===sc[1])
+        );
+        if(agrees){ hg=sc[0]; ag=sc[1]; }
+        else if(pk==='home'){ hg=1; ag=0; }
+        else if(pk==='away'){ hg=0; ag=1; }
+        else { hg=0; ag=0; }
+      }
+      else if(sc){ hg=sc[0]; ag=sc[1]; }
       else {
-        // predictScore already returns [homeGoals, awayGoals] correctly
+        // No user pick — derive from the model.
         const derived=predictScore(home,away);
         hg=derived[0]; ag=derived[1];
       }
@@ -3640,22 +3655,14 @@ function setPredGroup(g, mi, val){
     if(!state.predictions.scores) state.predictions.scores={};
     const match=state.groupMatches[g][mi];
     if(match){
-      // Get score from the perspective of the actual pick winner
+      // A picked winner wins by EXACTLY ONE GOAL (1-0 / 0-1); a picked draw is
+      // 0-0. Deterministic and independent of the model — previously this used
+      // predictScore() and, when the model returned a draw scoreline, a picked
+      // winner was wrongly stored as a draw.
       let sc;
-      if(val==='home'){
-        // User picked home to win — get score with home as winner
-        const raw=predictScore(match.home,match.away);
-        sc = raw[0]>=raw[1] ? raw : [raw[1],raw[0]]; // ensure home wins
-      } else if(val==='away'){
-        // User picked away to win — flip the home-perspective score
-        const raw=predictScore(match.home,match.away);
-        // raw[0]=home goals, raw[1]=away goals — flip so away wins
-        sc = raw[1]>=raw[0] ? raw : [raw[1],raw[0]]; // ensure away wins
-      } else {
-        // Draw — store appropriate draw scoreline based on draw probability
-        const dp=blendedProb(match.home,match.away).probs[1];
-        sc = dp>=32 ? [1,1] : [0,0];
-      }
+      if(val==='home') sc=[1,0];
+      else if(val==='away') sc=[0,1];
+      else sc=[0,0];
       state.predictions.scores[key]=sc;
     }
   }
