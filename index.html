@@ -909,19 +909,17 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   transform:translate(-50%,-50%); border:1px solid rgba(255,255,255,0.18); border-radius:50%; }
 .ln-row { display:flex; justify-content:space-around; align-items:flex-start; gap:4px; position:relative; z-index:1; }
 .ln-player { display:flex; flex-direction:column; align-items:center; width:58px; }
-.ln-jersey { position:relative; width:38px; height:38px; border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
-  font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1rem; color:#fff;
-  background:var(--blue); box-shadow:0 1px 3px rgba(0,0,0,0.4); }
-.ln-jersey.gk { background:#444; }
+.ln-jersey-wrap { position:relative; width:40px; height:37px; display:flex; align-items:center; justify-content:center; }
+.ln-jersey-svg { display:block; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
+.ln-jersey-num { position:absolute; top:52%; left:50%; transform:translate(-50%,-50%);
+  font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:0.85rem; pointer-events:none; }
 .ln-name { margin-top:3px; font-size:0.62rem; line-height:1.1; text-align:center; color:#fff;
   max-width:58px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   background:rgba(0,0,0,0.35); border-radius:3px; padding:1px 3px; }
-.ln-badge { position:absolute; top:-5px; right:-5px; font-size:0.6rem; line-height:1;
+.ln-badge { position:absolute; top:-5px; right:-6px; font-size:0.6rem; line-height:1;
   background:var(--card); border-radius:6px; padding:1px 2px; }
-.ln-sub-in { position:absolute; bottom:-4px; left:-4px; font-size:0.55rem; color:#6ee7a8; }
-.ln-half-home .ln-jersey { background:var(--blue); }
-.ln-half-away .ln-jersey { background:#b8333a; }
+.ln-sub-in { position:absolute; bottom:-3px; left:-3px; font-size:0.55rem; color:#6ee7a8; }
+.ln-pitch.ln-half-away::before, .ln-pitch.ln-half-home::before { }
 /* Stats comparison view */
 .sm-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 16px 30px; flex:1; }
 .sm-stats-wrap { display:flex; flex-direction:column; gap:14px; padding-top:6px; }
@@ -6694,6 +6692,41 @@ function showDiagnostics() {
   });
 })();
 
+// Known primary kit colours for World Cup teams (home shirt). Used when ESPN's
+// team.color is missing/unreliable. Keys are normalized team names.
+const WC_TEAM_COLORS = {
+  'Mexico':'#006847','Spain':'#c60b1e','Saudi Arabia':'#16863f','Argentina':'#75aadb',
+  'Brazil':'#ffdf00','France':'#1f3a93','England':'#ffffff','Germany':'#111111',
+  'Portugal':'#c8102e','Netherlands':'#f36c21','Uruguay':'#5cb3e6','Croatia':'#ff0000',
+  'Belgium':'#e30613','Italy':'#0066b3','USA':'#1a3263','Canada':'#d52b1e',
+  'Japan':'#0b1f5e','South Korea':'#c8102e','Senegal':'#1eb53a','Morocco':'#c1272d',
+  'Ghana':'#006b3f','Ivory Coast':'#f77f00','Cabo Verde':'#003893','Switzerland':'#d52b1e',
+  'Ecuador':'#ffd100','Colombia':'#fcd116','Scotland':'#0065bf','Norway':'#ba0c2f',
+  'Algeria':'#1eb53a','Tunisia':'#e70013','Sweden':'#fecc00','Qatar':'#8a1538',
+  'Bosnia':'#002395','Czechia':'#11457e','South Africa':'#007a4d','Haiti':'#00209f',
+  'Paraguay':'#d52b1e','Iraq':'#ce1126',
+};
+function _hexClean(c){ if(!c) return null; c=String(c).replace(/^#/,''); return /^[0-9a-fA-F]{6}$/.test(c)?('#'+c.toLowerCase()):null; }
+function _hexDist(a,b){
+  if(!a||!b) return 999;
+  const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const [r1,g1,b1]=p(a),[r2,g2,b2]=p(b);
+  return Math.sqrt((r1-r2)**2+(g1-g2)**2+(b1-b2)**2);
+}
+function _resolveKitColors(homeName, awayName, homeTeamObj, awayTeamObj){
+  const pick=(name,obj)=> WC_TEAM_COLORS[name] || _hexClean(obj?.color) || null;
+  let home = pick(homeName, homeTeamObj) || '#3498db';
+  let away = pick(awayName, awayTeamObj) || '#b8333a';
+  // If the two are too similar, try the away team's ESPN alternate, then a
+  // neutral contrast colour, so the two XIs never blend together.
+  if(_hexDist(home,away) < 60){
+    const alt=_hexClean(awayTeamObj?.alternateColor);
+    if(alt && _hexDist(home,alt) >= 60) away=alt;
+    else away = (_hexDist(home,'#ffffff')>=120) ? '#ffffff' : '#222222';
+  }
+  return { home, away };
+}
+
 async function _liveFetchAll(espnFetch) {
   const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
   // Query a 3-day window (yesterday→tomorrow). A late local kickoff (e.g. 11pm
@@ -6741,6 +6774,13 @@ async function _liveFetchAll(espnFetch) {
     const homeName = normalizeESPNTeam(homeComp.team?.displayName || homeComp.team?.name || '');
     const awayName = normalizeESPNTeam(awayComp.team?.displayName || awayComp.team?.name || '');
 
+    // Team kit colours for the lineup pitch. Prefer ESPN's team.color (hex), fall
+    // back to a known World-Cup colour map, then to neutral blue/red. If both
+    // teams resolve to the same/too-similar colour, push the away side to its
+    // alternate so the two XIs stay visually distinct.
+    const { home: homeColor, away: awayColor } =
+      _resolveKitColors(homeName, awayName, homeComp.team, awayComp.team);
+
     const evState = event.status?.type?.state || 'pre';
     const clock   = event.status?.displayClock || '';
     const period  = event.status?.period || 1;
@@ -6757,6 +6797,7 @@ async function _liveFetchAll(espnFetch) {
     _liveEvents[event.id] = {
       id: event.id,
       home: homeName, away: awayName,
+      homeColor, awayColor,
       homeScore: parseInt(homeComp.score) || 0,
       awayScore: parseInt(awayComp.score) || 0,
       homeFlag: FLAGS[homeName] || '',
@@ -7028,11 +7069,13 @@ function _lmCurrentXI(lineup, subs, teamIds) {
 function _lmFormationRows(xi) {
   if (!xi.length) return [];
   const cat = p => {
-    const pos = (p.position || '').toUpperCase();
-    if (/GK|G$/.test(pos)) return 0;
-    if (/(CB|RB|LB|RWB|LWB|D)/.test(pos)) return 1;
-    if (/(DM|CM|AM|RM|LM|M)/.test(pos)) return 2;
-    if (/(CF|ST|RW|LW|F|W)/.test(pos)) return 3;
+    const pos = (p.position || '').toUpperCase().trim();
+    if (!pos) return 2;
+    if (/^G/.test(pos) || pos === 'GK') return 0;            // goalkeeper
+    // midfield first (so DM/CM/AM/RM/LM/MF don't get caught by the 'D' in defender test)
+    if (/^(D?M|A?M|RM|LM|CM|MF|M)$/.test(pos) || /MID/.test(pos)) return 2;
+    if (/^(CB|RB|LB|RWB|LWB|WB|D|DF)$/.test(pos) || /DEF|BACK/.test(pos)) return 1;
+    if (/^(CF|ST|RW|LW|FW|F|W|SS)$/.test(pos) || /FOR|STRIK|WING/.test(pos)) return 3;
     return 2;
   };
   const hasPos = xi.some(p => p.position);
@@ -7052,7 +7095,7 @@ function _lmFormationRows(xi) {
   return rows;
 }
 
-function _lmPlayerCell(p, ev, half) {
+function _lmPlayerCell(p, ev, kitColor) {
   const num = p.jersey || '';
   const isGK = /GK|G$/.test((p.position || '').toUpperCase());
   // goal/card badges from parsed events keyed by espnId
@@ -7068,25 +7111,51 @@ function _lmPlayerCell(p, ev, half) {
   const badgeHtml = badge ? `<span class="ln-badge">${badge}</span>` : '';
   const subHtml = p.cameOn ? `<span class="ln-sub-in">▲</span>` : '';
   const surname = (p.name || '').split(' ').slice(-1)[0] || p.name || '';
+  // GK wears a contrasting kit (dark) so it reads differently from outfield.
+  const fill = isGK ? '#2b2b2b' : (kitColor || '#3498db');
+  const txt = _contrastText(fill);
   return `<div class="ln-player">
-    <div class="ln-jersey ${isGK ? 'gk' : ''}">${num}${badgeHtml}${subHtml}</div>
+    <div class="ln-jersey-wrap">
+      ${_jerseySVG(fill)}
+      <span class="ln-jersey-num" style="color:${txt}">${num}</span>
+      ${badgeHtml}${subHtml}
+    </div>
     <div class="ln-name">${surname}</div>
   </div>`;
 }
 
-function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds) {
+// Inline jersey silhouette (shirt with sleeves + collar), filled with kit colour.
+function _jerseySVG(fill){
+  const stroke = 'rgba(0,0,0,0.25)';
+  return `<svg class="ln-jersey-svg" viewBox="0 0 48 44" width="40" height="37" aria-hidden="true">
+    <path d="M17 3 L31 3 L31 7 Q24 12 24 12 Q24 12 17 7 Z" fill="${fill}" stroke="${stroke}" stroke-width="0.6"/>
+    <path d="M17 3 L7 9 L2 18 L9 23 L12 19 L12 41 Q24 44 36 41 L36 19 L39 23 L46 18 L41 9 L31 3
+             Q24 12 17 3 Z" fill="${fill}" stroke="${stroke}" stroke-width="0.8"/>
+  </svg>`;
+}
+
+// Pick black or white text for legibility on a given hex background.
+function _contrastText(hex){
+  const h=String(hex||'').replace('#','');
+  if(h.length!==6) return '#fff';
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  // relative luminance
+  const lum=(0.299*r+0.587*g+0.114*b)/255;
+  return lum>0.6 ? '#1a1a1a' : '#ffffff';
+}
+
+function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds, kitColor) {
   const xi = _lmCurrentXI(lineup, subs, teamIds);
   if (!xi.length) {
     return `<div class="ln-team-label">${teamName}</div><div class="ln-tba">${t('lineup_tba')}</div>`;
   }
-  let rows = _lmFormationRows(xi);
-  // For the away half (bottom), reverse row order so forwards sit nearest the
-  // halfway line — mirrors a real pitch with the two teams facing each other.
-  if (halfClass === 'ln-half-away') rows = rows.slice().reverse();
+  const rows = _lmFormationRows(xi);
+  // Both teams read defence-first (GK → DEF → MID → FWD), standard football
+  // nomenclature, e.g. 4-2-3-1 / 5-3-2. We do NOT reverse the away side.
   const rowsHtml = rows.map(row =>
-    `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, halfClass)).join('')}</div>`
+    `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, kitColor)).join('')}</div>`
   ).join('');
-  // Formation string from row sizes (outfield only), e.g. 4-2-3-1
+  // Formation string from outfield row sizes (defence-first).
   const outfield = rows.map(r => r.filter(p => !/GK|G$/.test((p.position||'').toUpperCase())).length).filter(n => n);
   const formStr = outfield.length ? outfield.join('-') : '';
   return `<div class="ln-team-label">${teamName}${formStr ? ` <span class="ln-form">${formStr}</span>` : ''}</div>
@@ -7101,8 +7170,8 @@ function lmRenderLineup(eventId) {
   const subs = ev.subs || [];
   const homeIds = (ev.homeLineup || []).map(p => String(p.espnId));
   const awayIds = (ev.awayLineup || []).map(p => String(p.espnId));
-  const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds);
-  const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds);
+  const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds, ev.homeColor);
+  const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds, ev.awayColor);
   box.innerHTML = homeHtml + awayHtml;
 }
 
