@@ -6445,6 +6445,20 @@ async function globalRefresh(){
 // ============================================================
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// Extract ESPN's formation STRING (e.g. "4-3-3") for a team from the summary
+// rosters[]. Returns null if absent. This is the authoritative shape; we use it
+// to lay out pitch rows rather than re-deriving from positions.
+function _liveParseFormation(sumJson, teamName) {
+  for (const r of (sumJson?.rosters || [])) {
+    const tName = normalizeESPNTeam(r.team?.displayName || r.team?.name || '');
+    if (tName !== teamName) continue;
+    const f = r.formation || r.team?.formation || null;
+    if (typeof f === 'string' && /^\d+(-\d+)+$/.test(f.trim())) return f.trim();
+    return null;
+  }
+  return null;
+}
+
 function _liveParseLineup(sumJson, teamName) {
   // ESPN soccer summary returns lineups under rosters[] (preferred);
   // fall back to boxscore.players[] if rosters is absent.
@@ -6791,6 +6805,8 @@ async function _liveFetchAll(espnFetch) {
     // live state/score immediately; lineups & stats fill in on a later poll.
     const homeLineup = sumJson ? _liveParseLineup(sumJson, homeName) : [];
     const awayLineup = sumJson ? _liveParseLineup(sumJson, awayName) : [];
+    const homeFormation = sumJson ? _liveParseFormation(sumJson, homeName) : null;
+    const awayFormation = sumJson ? _liveParseFormation(sumJson, awayName) : null;
     const evts = sumJson ? _liveParseEvents(sumJson) : { goals:{}, ownGoals:{}, yellows:{}, reds:{}, subs:[] };
     const stats = sumJson ? _liveParseStats(sumJson) : null;
 
@@ -6798,6 +6814,7 @@ async function _liveFetchAll(espnFetch) {
       id: event.id,
       home: homeName, away: awayName,
       homeColor, awayColor,
+      homeFormation, awayFormation,
       homeScore: parseInt(homeComp.score) || 0,
       awayScore: parseInt(awayComp.score) || 0,
       homeFlag: FLAGS[homeName] || '',
@@ -7063,36 +7080,57 @@ function _lmCurrentXI(lineup, subs, teamIds) {
   return slots;
 }
 
-// Group an XI into pitch rows (GK at the back, then defenders, mids, forwards).
-// Uses position abbreviations when present; otherwise falls back to evenly
-// splitting by formationPlace order.
-function _lmFormationRows(xi) {
+// Build pitch rows. Preferred path: use ESPN's formation STRING (e.g. "4-3-3")
+// to size the outfield lines, filling players in ESPN's formationPlace order
+// (1=GK, then back-to-front). Returns rows ordered GK → DEF → MID → FWD.
+// Falls back to position-grouping only when no formation string is available.
+function _lmFormationRows(xi, formationStr) {
   if (!xi.length) return [];
+  // Order by formationPlace (1=GK, 2.. tactical). Subs that came on keep the
+  // slot they inherited, so this stays correct after substitutions.
+  const ordered = [...xi].sort((a, b) => {
+    const fa = parseInt(a.formationPlace) || 999, fb = parseInt(b.formationPlace) || 999;
+    return fa - fb;
+  });
+  // If ESPN gave us a formation string AND we have a sensible count, use it.
+  if (formationStr && /^\d+(-\d+)+$/.test(formationStr)) {
+    const lines = formationStr.split('-').map(n => parseInt(n, 10)).filter(n => n > 0);
+    const outfieldNeeded = lines.reduce((a, b) => a + b, 0);
+    // ESPN order is GK first, then defenders → forwards. Take GK, then chunk.
+    const gk = ordered.slice(0, 1);
+    const outfield = ordered.slice(1);
+    if (outfield.length >= outfieldNeeded - 1) {
+      const rows = [gk];
+      let idx = 0;
+      for (const n of lines) {
+        rows.push(outfield.slice(idx, idx + n));
+        idx += n;
+      }
+      // any leftover (shouldn't happen) appended to last line
+      if (idx < outfield.length) rows[rows.length - 1].push(...outfield.slice(idx));
+      return rows.filter(r => r.length);
+    }
+  }
+  // Fallback: group by position abbreviation.
   const cat = p => {
     const pos = (p.position || '').toUpperCase().trim();
     if (!pos) return 2;
-    if (/^G/.test(pos) || pos === 'GK') return 0;            // goalkeeper
-    // midfield first (so DM/CM/AM/RM/LM/MF don't get caught by the 'D' in defender test)
+    if (/^G/.test(pos) || pos === 'GK') return 0;
     if (/^(D?M|A?M|RM|LM|CM|MF|M)$/.test(pos) || /MID/.test(pos)) return 2;
     if (/^(CB|RB|LB|RWB|LWB|WB|D|DF)$/.test(pos) || /DEF|BACK/.test(pos)) return 1;
     if (/^(CF|ST|RW|LW|FW|F|W|SS)$/.test(pos) || /FOR|STRIK|WING/.test(pos)) return 3;
     return 2;
   };
   const hasPos = xi.some(p => p.position);
-  let rows;
   if (hasPos) {
-    rows = [[], [], [], []];
-    xi.forEach(p => rows[cat(p)].push(p));
-    rows = rows.filter(r => r.length);
-  } else {
-    // No positions: order by formationPlace and chunk into GK + 3 lines.
-    const ordered = [...xi].sort((a, b) => (a.formationPlace || 0) - (b.formationPlace || 0));
-    const gk = ordered.slice(0, 1);
-    const rest = ordered.slice(1);
-    const third = Math.ceil(rest.length / 3);
-    rows = [gk, rest.slice(0, third), rest.slice(third, 2 * third), rest.slice(2 * third)].filter(r => r && r.length);
+    const rows = [[], [], [], []];
+    ordered.forEach(p => rows[cat(p)].push(p));
+    return rows.filter(r => r.length);
   }
-  return rows;
+  const gk = ordered.slice(0, 1);
+  const rest = ordered.slice(1);
+  const third = Math.ceil(rest.length / 3);
+  return [gk, rest.slice(0, third), rest.slice(third, 2 * third), rest.slice(2 * third)].filter(r => r && r.length);
 }
 
 function _lmPlayerCell(p, ev, kitColor) {
@@ -7144,20 +7182,26 @@ function _contrastText(hex){
   return lum>0.6 ? '#1a1a1a' : '#ffffff';
 }
 
-function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds, kitColor) {
+function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds, kitColor, formationStr) {
   const xi = _lmCurrentXI(lineup, subs, teamIds);
   if (!xi.length) {
     return `<div class="ln-team-label">${teamName}</div><div class="ln-tba">${t('lineup_tba')}</div>`;
   }
-  const rows = _lmFormationRows(xi);
-  // Both teams read defence-first (GK → DEF → MID → FWD), standard football
-  // nomenclature, e.g. 4-2-3-1 / 5-3-2. We do NOT reverse the away side.
-  const rowsHtml = rows.map(row =>
+  let rows = _lmFormationRows(xi, formationStr);   // GK → DEF → MID → FWD
+  // On the pitch, the GK stands on the goal line. Home team occupies the TOP
+  // half (attacks downward), so its GK is at the very top → keep GK-first order.
+  // Away team occupies the BOTTOM half (attacks upward), so its GK is at the
+  // very bottom → render rows reversed (FWD → … → GK).
+  const renderRows = (halfClass === 'ln-half-away') ? rows.slice().reverse() : rows;
+  const rowsHtml = renderRows.map(row =>
     `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, kitColor)).join('')}</div>`
   ).join('');
-  // Formation string from outfield row sizes (defence-first).
-  const outfield = rows.map(r => r.filter(p => !/GK|G$/.test((p.position||'').toUpperCase())).length).filter(n => n);
-  const formStr = outfield.length ? outfield.join('-') : '';
+  // Formation label: prefer ESPN's string; otherwise derive from outfield rows.
+  let formStr = formationStr && /^\d+(-\d+)+$/.test(formationStr) ? formationStr : '';
+  if (!formStr) {
+    const outfield = rows.slice(1).map(r => r.length).filter(n => n);
+    formStr = outfield.length ? outfield.join('-') : '';
+  }
   return `<div class="ln-team-label">${teamName}${formStr ? ` <span class="ln-form">${formStr}</span>` : ''}</div>
     <div class="ln-pitch ${halfClass}">${rowsHtml}</div>`;
 }
@@ -7170,8 +7214,8 @@ function lmRenderLineup(eventId) {
   const subs = ev.subs || [];
   const homeIds = (ev.homeLineup || []).map(p => String(p.espnId));
   const awayIds = (ev.awayLineup || []).map(p => String(p.espnId));
-  const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds, ev.homeColor);
-  const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds, ev.awayColor);
+  const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds, ev.homeColor, ev.homeFormation);
+  const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds, ev.awayColor, ev.awayFormation);
   box.innerHTML = homeHtml + awayHtml;
 }
 
