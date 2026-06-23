@@ -2386,6 +2386,33 @@ function clinchedFirst(group){
   }
   return leader;
 }
+// A team has clinched EXACTLY 2nd place (the runner-up slot, e.g. I2) only if,
+// across every outcome of the remaining matches, it finishes 2nd by the full
+// ranking (points + tiebreakers) — never 1st and never below 2nd. This is
+// stricter than clinchedQualified (which only guarantees a top-2 finish without
+// fixing whether the team ends 1st or 2nd). A team that has qualified but could
+// still win the group must NOT be shown as locked into the 2nd-place slot.
+function clinchedSecond(group){
+  const ms=state.groupMatches[group]||[];
+  const remIdx=[]; ms.forEach((m,i)=>{ if(m.homeScore===null) remIdx.push(i); });
+  if(remIdx.length===0){ return calcStandings(group)[1]?.name||null; }
+  const anyPlayed=ms.some(m=>m.homeScore!==null);
+  if(!anyPlayed) return null;
+  if(remIdx.length>4) return null;
+  const cand=calcStandings(group)[1]?.name; if(!cand) return null;
+  const combos=_outcomeCombos(remIdx.length);
+  for(const combo of combos){
+    const assignments=remIdx.map((idx,k)=>{
+      const o=combo[k];
+      if(o===0) return {idx, hs:5, as:0};
+      if(o===2) return {idx, hs:0, as:5};
+      return {idx, hs:0, as:0};
+    });
+    const second=_withHypotheticalScores(group, assignments, ()=>calcStandings(group)[1]?.name);
+    if(second!==cand) return null;   // some outcome puts a different team 2nd → not locked
+  }
+  return cand;
+}
 function clinchedQualified(group){
   // A team is GUARANTEED top-2 iff, across EVERY outcome combination of the
   // remaining matches, it finishes 1st or 2nd by POINTS — counting a points tie
@@ -2430,12 +2457,12 @@ function getSlotTeam(slot) {
     // "(A1)" tag and not preliminary — even before all matches are played.
     if(allMatchesPlayed(grp)) return {name: team, preliminary: false, slot};
     if(pos===0 && clinchedFirst(grp)===team) return {name: team, preliminary: false, slot};
-    // 2nd place is confirmed only if BOTH top-2 spots are mathematically locked
-    // (i.e. exactly these two teams can occupy 1st/2nd) and this team is one.
-    if(pos===1){
-      const q=clinchedQualified(grp);
-      if(q.size>=2 && q.has(team)) return {name: team, preliminary: false, slot};
-    }
+    // 2nd place (e.g. I2) is confirmed ONLY if this team is mathematically locked
+    // into exactly 2nd — i.e. it cannot finish 1st and cannot drop out of the
+    // top 2. A team that has merely clinched qualification but could still win
+    // the group must stay preliminary (greyed), because its slot (1st vs 2nd)
+    // is not yet decided.
+    if(pos===1 && clinchedSecond(grp)===team) return {name: team, preliminary: false, slot};
     return {name: team, preliminary: true, slot};
   }
   return {name: slot, preliminary: true, slot};
