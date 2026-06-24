@@ -2718,7 +2718,7 @@ function buildPredBracket() {
     let winner, autoSim=false;
     if(realWinner){ winner=realWinner; }
     else if(pick){ winner=(pick==='home'?home:away); }
-    else if(home&&away){ const [pA]=calcProbKO(home,away); winner=pA>=50?home:away; autoSim=true; }
+    else if(home&&away){ const pA=blendedProbKO(home,away).probs[0]; winner=pA>=50?home:away; autoSim=true; }
     else{ winner=null; }
     bracket[seed.matchNum]={home,away,winner,autoSim};
   });
@@ -2729,7 +2729,7 @@ function buildPredBracket() {
     const rw=state.knockout[mn]?.winner||null;
     if(rw) return {winner:rw,autoSim:false};
     if(pick) return {winner:(pick==='home'?home:away),autoSim:false};
-    if(home&&away){const [pA]=calcProbKO(home,away);return {winner:pA>=50?home:away,autoSim:true};}
+    if(home&&away){const pA=blendedProbKO(home,away).probs[0];return {winner:pA>=50?home:away,autoSim:true};}
     return {winner:null,autoSim:false};
   }
 
