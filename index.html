@@ -313,10 +313,10 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 
 /* Pred standings */
 .pred-standings { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:16px; }
-.pred-stand-header { display:grid; grid-template-columns:1fr repeat(5,36px); padding:8px 14px; font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--border); background:var(--surface2); }
+.pred-stand-header { display:grid; grid-template-columns:1fr repeat(6,32px); padding:8px 14px; font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--border); background:var(--surface2); }
 .pred-stand-header span { text-align:center; }
 .pred-stand-header span:first-child { text-align:left; }
-.pred-srow { display:grid; grid-template-columns:1fr repeat(5,36px); padding:8px 14px; border-bottom:1px solid var(--border); align-items:center; font-size:0.82rem; transition:background 0.15s; }
+.pred-srow { display:grid; grid-template-columns:1fr repeat(6,32px); padding:8px 14px; border-bottom:1px solid var(--border); align-items:center; font-size:0.82rem; transition:background 0.15s; }
 .pred-srow:last-child { border-bottom:none; }
 .pred-srow.adv { background:rgba(46,204,113,0.05); }
 .pred-srow.third-adv { background: rgba(46,204,113,0.05); border-left: 2px solid rgba(46,204,113,0.4); }
@@ -3605,7 +3605,7 @@ function renderPredGroup(g, container){
 
   // Predicted standings for this group
   html+=`<div class="pred-standings">
-    <div class="pred-stand-header"><span>${t('th_team')}</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>`;
+    <div class="pred-stand-header"><span>${t('th_team')}</span><span>W</span><span>D</span><span>L</span><span>GF</span><span>GD</span><span>Pts</span></div>`;
   const best3rds = getBest3rdGroups();
   // Real-results clinch (not prediction-based) so the marker reflects what has
   // actually been mathematically secured.
@@ -3620,6 +3620,7 @@ function renderPredGroup(g, container){
     html+=`<div class="pred-srow${adv?' adv':''}${is3rd?' third-adv':''}${_confirmed?' clinch-row':''}">
       <span>${adv?'<span class="pred-qual-bar"></span>':''}<span class="pred-rank${adv?' adv':''}">${i+1}</span><span class="pred-team-nm${adv?' adv':''}">${FLAGS[t.n]||''} ${tTeam(t.n)}</span></span>
       <span>${t.w}</span><span>${t.d}</span><span>${t.l}</span>
+      <span>${t.gf}</span>
       <span style="color:${t.gd>0?'var(--green)':t.gd<0?'var(--red)':'inherit'}">${t.gd>0?'+':''}${t.gd}</span>
       <span class="pred-pts">${t.pts}</span>
     </div>`;
