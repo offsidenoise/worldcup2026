@@ -5345,7 +5345,23 @@ function calcSuspensions(){
 }
 
 // ── Sort helper ──────────────────────────────────────────────
+// Pitch-order rank for position sorting: GK → DF → MF → FW (forwards last),
+// rather than alphabetical (which would put DF first and GK in the middle).
+const POS_RANK={GK:0,DF:1,MF:2,FW:3};
+function _posRank(pos){
+  const p=String(pos||'').toUpperCase().trim();
+  return POS_RANK[p]!=null?POS_RANK[p]:99;  // unknown positions sort last
+}
 function sortBy(arr,col,dir,isNum){
+  if(col==='pos'){
+    return [...arr].sort((a,b)=>{
+      const ra=_posRank(a.pos), rb=_posRank(b.pos);
+      if(ra!==rb) return dir==='asc'?ra-rb:rb-ra;
+      // tie-break within a position by name for stable, readable grouping
+      const na=String(a.name||'').toLowerCase(), nb=String(b.name||'').toLowerCase();
+      return na<nb?-1:na>nb?1:0;
+    });
+  }
   return [...arr].sort((a,b)=>{
     const va=isNum?(parseFloat(a[col])||0):(String(a[col]||'')).toLowerCase();
     const vb=isNum?(parseFloat(b[col])||0):(String(b[col]||'')).toLowerCase();
