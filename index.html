@@ -7112,6 +7112,44 @@ function _lmCurrentXI(lineup, subs, teamIds) {
 // to size the outfield lines, filling players in ESPN's formationPlace order
 // (1=GK, then back-to-front). Returns rows ordered GK → DEF → MID → FWD.
 // Falls back to position-grouping only when no formation string is available.
+// Lateral lean of a position abbreviation, for ordering players within a row
+// from the team's own LEFT (low) to RIGHT (high). ESPN abbreviations encode the
+// side: an 'L' prefix is left, 'R' is right, otherwise it's central. We return a
+// sort key; players with the same key keep their formationPlace order as a
+// stable fallback. Returns null when the abbreviation carries no L/R/C signal so
+// the caller can fall back to formationPlace.
+function _lateralKey(pos){
+  const p=(pos||'').toUpperCase().trim();
+  if(!p) return null;
+  // Explicit wing/flank markers
+  if(/^L|LEFT/.test(p)) return 0;          // LB, LWB, LM, LW, LCB...
+  if(/^R|RIGHT/.test(p)) return 2;         // RB, RWB, RM, RW, RCB...
+  if(/^C|CENT|^GK$|^G$|^ST$|^CF$|^SS$|^DM$|^AM$|^CM$|^CB$|^CDM$|^CAM$/.test(p)) return 1; // central
+  return null;                              // generic (D/M/F/DF/MF/FW) → unknown
+}
+
+// Order a single row of players from the team's own left → right. Uses lateral
+// position keys when available; otherwise preserves the incoming (formationPlace)
+// order. `mirror` flips left/right for the away team so the two XIs face each
+// other as on a real pitch.
+function _orderRowLaterally(row, mirror){
+  if(row.length<=1) return row.slice();
+  const keyed = row.map((p,i)=>({p, i, k:_lateralKey(p.position)}));
+  const anyKnown = keyed.some(x=>x.k!==null);
+  if(!anyKnown) return row.slice();  // no lateral info → keep formationPlace order
+  // Spread players with a known side across the row; unknowns keep relative order
+  // by falling to center. Stable on original index for ties.
+  keyed.sort((a,b)=>{
+    const ka = a.k===null ? 1 : a.k;   // unknown → treat as central
+    const kb = b.k===null ? 1 : b.k;
+    if(ka!==kb) return ka-kb;
+    return a.i-b.i;                      // stable: preserve formationPlace order
+  });
+  let ordered = keyed.map(x=>x.p);
+  if(mirror) ordered = ordered.reverse();  // away team: flip to face the home team
+  return ordered;
+}
+
 function _lmFormationRows(xi, formationStr) {
   if (!xi.length) return [];
   // Order by formationPlace (1=GK, 2.. tactical). Subs that came on keep the
@@ -7216,11 +7254,16 @@ function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds, kitColor, 
     return `<div class="ln-team-label">${teamName}</div><div class="ln-tba">${t('lineup_tba')}</div>`;
   }
   let rows = _lmFormationRows(xi, formationStr);   // GK → DEF → MID → FWD
+  const isAway = (halfClass === 'ln-half-away');
+  // Order each row from the team's own left → right. The away team is mirrored
+  // horizontally so the two XIs face each other as on a real pitch (its own left
+  // sits on the viewer's right).
+  rows = rows.map(row => _orderRowLaterally(row, isAway));
   // On the pitch, the GK stands on the goal line. Home team occupies the TOP
   // half (attacks downward), so its GK is at the very top → keep GK-first order.
   // Away team occupies the BOTTOM half (attacks upward), so its GK is at the
   // very bottom → render rows reversed (FWD → … → GK).
-  const renderRows = (halfClass === 'ln-half-away') ? rows.slice().reverse() : rows;
+  const renderRows = isAway ? rows.slice().reverse() : rows;
   const rowsHtml = renderRows.map(row =>
     `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, kitColor)).join('')}</div>`
   ).join('');
