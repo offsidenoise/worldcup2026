@@ -1178,11 +1178,13 @@ body.light-mode .stats-tbl th { background:var(--bg); }
           <button class="lm-toggle-btn" id="lm-tab-stats" onclick="lmSetView('stats')" data-i18n="btn_stats">Stats</button>
           <button class="lm-toggle-btn active" id="lm-tab-squad" onclick="lmSetView('squad')" data-i18n="btn_squad">Squad</button>
           <button class="lm-toggle-btn" id="lm-tab-lineup" onclick="lmSetView('lineup')" data-i18n="btn_lineup">Lineup</button>
+          <button class="lm-toggle-btn" id="lm-tab-referees" onclick="lmSetView('referees')" data-i18n="btn_referees" style="display:none;">Referees</button>
         </div>
       </div>
       <div class="lm-cols" id="lm-cols"></div>
       <div class="sm-body" id="lm-stats-view" style="display:none;"></div>
       <div id="lm-lineup-view" style="display:none;"></div>
+      <div id="lm-referees-view" style="display:none;"></div>
     </div>
   </div>
 
@@ -5875,6 +5877,8 @@ const STRINGS = {
   btn_squad:        {en:'Squad',        es:'Plantel'},
   btn_stats:        {en:'Stats',        es:'Estadísticas'},
   btn_lineup:       {en:'Lineup',       es:'Alineación'},
+  btn_referees:     {en:'Referees',     es:'Árbitros'},
+  ref_none:         {en:'Officials not available yet.', es:'Árbitros aún no disponibles.'},
   lineup_tba:       {en:'To Be Announced', es:'Por confirmar'},
   squad_tba:        {en:'To Be Announced', es:'Por confirmar'},
   stat_match_stats: {en:'Match stats',  es:'Estadísticas del partido'},
@@ -6519,6 +6523,32 @@ function _liveParseFormation(sumJson, teamName) {
   return null;
 }
 
+// Parse match officials from ESPN's gameInfo.officials[]. Each entry has
+// fullName/displayName, position.name (the role, e.g. "Referee"), and an
+// `order` integer. ESPN does NOT provide nationality, so country is resolved
+// locally via refereeCountry() against the FIFA roster map. Returns [] when
+// ESPN supplies no officials (common pre-game or for some matches), which lets
+// the UI hide the Referees tab entirely.
+function _liveParseOfficials(sumJson) {
+  const list = sumJson?.gameInfo?.officials || [];
+  const out = [];
+  for (const o of list) {
+    const name = (o.displayName || o.fullName || '').trim();
+    if (!name) continue;
+    const role = (o.position?.displayName || o.position?.name || '').trim();
+    out.push({
+      name,
+      role,
+      order: (typeof o.order === 'number') ? o.order : 999,
+      country: refereeCountry(name),  // '' if unknown — UI shows name alone
+    });
+  }
+  // On-field first (referee, then assistants), then off-field (fourth, VAR…),
+  // using ESPN's order. Stable within equal order.
+  out.sort((a, b) => a.order - b.order);
+  return out;
+}
+
 function _liveParseLineup(sumJson, teamName) {
   // ESPN soccer summary returns lineups under rosters[] (preferred);
   // fall back to boxscore.players[] if rosters is absent.
@@ -6780,6 +6810,198 @@ const WC_TEAM_COLORS = {
   'Bosnia':'#002395','Czechia':'#11457e','South Africa':'#007a4d','Haiti':'#00209f',
   'Paraguay':'#d52b1e','Iraq':'#ce1126',
 };
+const WC_REFEREES = {
+  "Abdulrahman Al-Jassim":"Qatar",
+  "Khalid Al-Turais":"Saudi Arabia",
+  "Alireza Faghani":"Australia",
+  "Ma Ning":"China",
+  "Adham Makhadmeh":"Jordan",
+  "Ilgiz Tantashev":"Uzbekistan",
+  "Yusuke Araki":"Japan",
+  "Pierre Atcho":"Gabon",
+  "Dahane Beida":"Mauritania",
+  "Mustapha Ghorbal":"Algeria",
+  "Jalal Jayed":"Morocco",
+  "Amin Mohamed Omar":"Egypt",
+  "Abongile Tom":"South Africa",
+  "Iv\u00e1n Barton":"El Salvador",
+  "Juan Gabriel Calder\u00f3n":"Costa Rica",
+  "Ismail Elfath":"United States",
+  "Oshane Nation":"Jamaica",
+  "Drew Fischer":"Canada",
+  "Katia Itzel Garc\u00eda":"Mexico",
+  "Sa\u00edd Mart\u00ednez":"Honduras",
+  "Tori Penso":"United States",
+  "C\u00e9sar Arturo Ramos":"Mexico",
+  "Ramon Abatti":"Brazil",
+  "Juan Gabriel Ben\u00edtez":"Paraguay",
+  "Raphael Claus":"Brazil",
+  "Yael Falc\u00f3n":"Argentina",
+  "Cristi\u00e1n Garay":"Chile",
+  "Dar\u00edo Herrera":"Argentina",
+  "Kevin Ortega":"Peru",
+  "Andr\u00e9s Rojas":"Colombia",
+  "Wilton Sampaio":"Brazil",
+  "Gustavo Tejera":"Uruguay",
+  "Facundo Tello":"Argentina",
+  "Jes\u00fas Valenzuela":"Venezuela",
+  "Campbell-Kirk Kawana-Waugh":"New Zealand",
+  "Espen Esk\u00e5s":"Norway",
+  "Alejandro Hern\u00e1ndez Hern\u00e1ndez":"Spain",
+  "Istv\u00e1n Kov\u00e1cs":"Romania",
+  "Fran\u00e7ois Letexier":"France",
+  "Danny Makkelie":"Netherlands",
+  "Szymon Marciniak":"Poland",
+  "Maurizio Mariani":"Italy",
+  "Glenn Nyberg":"Sweden",
+  "Michael Oliver":"England",
+  "Jo\u00e3o Pinheiro":"Portugal",
+  "Sandro Sch\u00e4rer":"Switzerland",
+  "Anthony Taylor":"England",
+  "Cl\u00e9ment Turpin":"France",
+  "Slavko Vin\u010di\u0107":"Slovenia",
+  "Felix Zwayer":"Germany",
+  "Omar Abdulkadir Artan":"Somalia",
+  "Omar Al Ali":"United Arab Emirates",
+  "Mohamed Al-Hammadi":"United Arab Emirates",
+  "Taleb Al-Marri":"Qatar",
+  "Saud Al-Maqaleh":"Qatar",
+  "Mohammed Al-Bakry":"Saudi Arabia",
+  "George Lakrindis":"Australia",
+  "James Lindsay":"Australia",
+  "Zhou Fei":"China",
+  "Mohammad Al-Kalaf":"Jordan",
+  "Ahmad Al-Roalle":"Jordan",
+  "Timur Gaynullin":"Uzbekistan",
+  "Andrey Tsapenko":"Uzbekistan",
+  "Jun Mihara":"Japan",
+  "Elvis Noupue":"Cameroon",
+  "Boris Ditsoga":"Gabon",
+  "Amos Abeigne Ndong":"Gabon",
+  "Jerson Emiliano dos Santos":"Angola",
+  "Mokrane Gourari":"Algeria",
+  "Abbes Akram Zerhouni":"Algeria",
+  "Zakaria Brinsi":"Morocco",
+  "Mostafa Akarkad":"Morocco",
+  "Mahmoud Abouregal":"Egypt",
+  "Ahmed Hossam Taha":"Egypt",
+  "Zakhele Siwela":"South Africa",
+  "David Mor\u00e1n":"El Salvador",
+  "Henry Pupiro":"Nicaragua",
+  "Juan Carlos Mora":"Costa Rica",
+  "Corey Parker":"United States",
+  "Kyle Atkins":"United States",
+  "Caleb Wales":"Trinidad and Tobago",
+  "Lyes Arfa":"Canada",
+  "Micheal Barwegen":"Canada",
+  "Sandra Ram\u00edrez":"Mexico",
+  "Walter L\u00f3pez":"Honduras",
+  "Christian Ram\u00edrez":"Honduras",
+  "Kathryn Nesbitt":"United States",
+  "Brooke Mayo":"United States",
+  "Alberto Mor\u00edn":"Mexico",
+  "Marco Bisguerra":"Mexico",
+  "Rafael Alves":"Brazil",
+  "Danilo Manis":"Brazil",
+  "Eduardo Cardozo":"Paraguay",
+  "Milc\u00edades Sald\u00edvar":"Paraguay",
+  "Rodrigo Figueiredo":"Brazil",
+  "Facundo Rodr\u00edguez":"Argentina",
+  "Maximiliano Del Yesso":"Argentina",
+  "Jos\u00e9 Retamal":"Chile",
+  "Miguel Rocha":"Chile",
+  "Cristian Navarro":"Argentina",
+  "Michael Oru\u00e9":"Peru",
+  "Alexander Guzm\u00e1n":"Colombia",
+  "Bruno Boschilia":"Brazil",
+  "Bruno Pires":"Brazil",
+  "Nicol\u00e1s Tar\u00e1n":"Uruguay",
+  "Carlos Barreiro":"Uruguay",
+  "Juan Pablo Belatti":"Argentina",
+  "Gabriel Chade":"Argentina",
+  "Jorge Urrego":"Venezuela",
+  "Tulio Moreno":"Venezuela",
+  "Isaac Trevis":"New Zealand",
+  "Jan Erik Engan":"Norway",
+  "Isaak Bashevkin":"Norway",
+  "Jos\u00e9 Enrique Naranjo P\u00e9rez":"Spain",
+  "Diego S\u00e1nchez Rojo":"Spain",
+  "Mihai Marius Marica":"Romania",
+  "Ferencz Tunyogi":"Romania",
+  "Cyril Mugnier":"France",
+  "Mehdi Rahmouni":"France",
+  "Hessel Steegstra":"Netherlands",
+  "Jan de Vries":"Netherlands",
+  "Tomasz Listkiewicz":"Poland",
+  "Adam Kupsik":"Poland",
+  "Daniele Bindoni":"Italy",
+  "Alberto Tegoni":"Italy",
+  "Mahbod Beigi":"Sweden",
+  "Andreas S\u00f6derkvist":"Sweden",
+  "Stuart Burt":"England",
+  "James Mainwaring":"England",
+  "Bruno Jesus":"Portugal",
+  "Luciano Maia":"Portugal",
+  "St\u00e9phane De Almeida":"Switzerland",
+  "Gary Beswick":"England",
+  "Adam Nunn":"England",
+  "Nicolas Danos":"France",
+  "Benjamin Pag\u00e8s":"France",
+  "Toma\u017e Klan\u010dnik":"Slovenia",
+  "Andra\u017e Kova\u010di\u010d":"Slovenia",
+  "Robert Kempter":"Germany",
+  "Christian Dietz":"Germany",
+  "Khamis Al-Marri":"Qatar",
+  "Abdullah Al-Shehri":"Saudi Arabia",
+  "Shaun Evans":"Australia",
+  "Fu Ming":"China",
+  "Mahmoud Ashour":"Egypt",
+  "Hamza El Fariq":"Morocco",
+  "Joe Dickerson":"United States",
+  "Armando Villarreal":"United States",
+  "Erick Miranda":"Mexico",
+  "Tatiana Guzm\u00e1n":"Nicaragua",
+  "Juan Lara":"Chile",
+  "Hern\u00e1n Mastr\u00e1ngelo":"Argentina",
+  "Antonio Garc\u00eda":"Uruguay",
+  "Leod\u00e1n Gonz\u00e1lez":"Uruguay",
+  "Juan Soto":"Venezuela",
+  "Nicol\u00e1s Gallo":"Colombia",
+  "Rodolpho Toski":"Brazil",
+  "J\u00e9r\u00f4me Brisard":"France",
+  "Willy Delajod":"France",
+  "Bastian Dankert":"Germany",
+  "Carlos del Cerro Grande":"Spain",
+  "Marco Di Bello":"Italy",
+  "Ivan Bebek":"Croatia",
+  "Jarred Gillett":"England",
+  "Dennis Higler":"Netherlands",
+  "Tomasz Kwiatkowski":"Poland",
+  "Bram Van Driessche":"Belgium",
+  "Fedayi San":"Switzerland"
+};
+// Accent-insensitive lookup of a match official's country of origin from the
+// FIFA 2026 official list. Returns the country string, or '' if the name isn't
+// recognized (so the UI can show the name alone rather than a wrong country).
+const _REF_NORM_INDEX = (function(){
+  const idx={};
+  const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+  for(const k in WC_REFEREES){ idx[norm(k)]=WC_REFEREES[k]; }
+  return {idx, norm};
+})();
+function refereeCountry(name){
+  if(!name) return '';
+  const n=_REF_NORM_INDEX.norm(name);
+  if(_REF_NORM_INDEX.idx[n]) return _REF_NORM_INDEX.idx[n];
+  // surname fallback: match on last token if unique
+  const last=n.split(' ').slice(-1)[0];
+  let hit='';
+  for(const k in _REF_NORM_INDEX.idx){
+    if(k.split(' ').slice(-1)[0]===last){ if(hit && hit!==_REF_NORM_INDEX.idx[k]) return ''; hit=_REF_NORM_INDEX.idx[k]; }
+  }
+  return hit;
+}
+
 function _hexClean(c){ if(!c) return null; c=String(c).replace(/^#/,''); return /^[0-9a-fA-F]{6}$/.test(c)?('#'+c.toLowerCase()):null; }
 function _hexDist(a,b){
   if(!a||!b) return 999;
@@ -6869,6 +7091,7 @@ async function _liveFetchAll(espnFetch) {
     const awayFormation = sumJson ? _liveParseFormation(sumJson, awayName) : null;
     const evts = sumJson ? _liveParseEvents(sumJson) : { goals:{}, ownGoals:{}, yellows:{}, reds:{}, subs:[] };
     const stats = sumJson ? _liveParseStats(sumJson) : null;
+    const officials = sumJson ? _liveParseOfficials(sumJson) : [];
 
     _liveEvents[event.id] = {
       id: event.id,
@@ -6888,6 +7111,7 @@ async function _liveFetchAll(espnFetch) {
       reds: evts.reds,
       subs: evts.subs,
       stats,
+      officials,
       hasLineups: homeLineup.length > 0 || awayLineup.length > 0,
     };
 
@@ -7065,6 +7289,11 @@ function lmOpen(eventId) {
   const tabStats = document.getElementById('lm-tab-stats');
   const toggle = document.getElementById('lm-toggle');
   if (tabStats) tabStats.style.display = isPre ? 'none' : '';
+  // Referees tab appears only once ESPN has populated officials (often just the
+  // main referee, sometimes the full crew; empty pre-game or for some matches).
+  const tabReferees = document.getElementById('lm-tab-referees');
+  const hasOfficials = ev && ev.officials && ev.officials.length > 0;
+  if (tabReferees) tabReferees.style.display = hasOfficials ? '' : 'none';
   if (toggle) toggle.style.display = '';
   // Default tab: Squad before kickoff (Stats is hidden then), Stats once live.
   lmSetView(isPre ? 'squad' : 'stats');
@@ -7080,14 +7309,17 @@ function lmSetView(view) {
   const cols = document.getElementById('lm-cols');
   const statsView = document.getElementById('lm-stats-view');
   const lineupView = document.getElementById('lm-lineup-view');
+  const refView = document.getElementById('lm-referees-view');
   const tabSquad = document.getElementById('lm-tab-squad');
   const tabStats = document.getElementById('lm-tab-stats');
   const tabLineup = document.getElementById('lm-tab-lineup');
+  const tabReferees = document.getElementById('lm-tab-referees');
   // hide all, clear active
   cols.style.display = 'none';
   statsView.style.display = 'none';
   if (lineupView) lineupView.style.display = 'none';
-  [tabSquad, tabStats, tabLineup].forEach(t => t && t.classList.remove('active'));
+  if (refView) refView.style.display = 'none';
+  [tabSquad, tabStats, tabLineup, tabReferees].forEach(t => t && t.classList.remove('active'));
   if (view === 'stats') {
     statsView.style.display = 'block';
     if (tabStats) tabStats.classList.add('active');
@@ -7096,6 +7328,10 @@ function lmSetView(view) {
     if (lineupView) lineupView.style.display = 'block';
     if (tabLineup) tabLineup.classList.add('active');
     lmRenderLineup(_lmCurrentEvent);
+  } else if (view === 'referees') {
+    if (refView) refView.style.display = 'block';
+    if (tabReferees) tabReferees.classList.add('active');
+    lmRenderReferees(_lmCurrentEvent);
   } else {
     cols.style.display = '';
     if (tabSquad) tabSquad.classList.add('active');
@@ -7320,6 +7556,33 @@ function lmRenderLineup(eventId) {
   const homeHtml = _lmTeamPitch(ev.homeLineup, subs, ev, ev.home || 'Home', 'ln-half-home', homeIds, ev.homeColor, ev.homeFormation);
   const awayHtml = _lmTeamPitch(ev.awayLineup, subs, ev, ev.away || 'Away', 'ln-half-away', awayIds, ev.awayColor, ev.awayFormation);
   box.innerHTML = homeHtml + awayHtml;
+}
+
+// Render the Referees view: each official as "Role — Name (Country)". ESPN gives
+// them already role-ordered (referee, assistants, fourth, VAR…) via `order`,
+// which _liveParseOfficials preserves. Country is shown only when known; when
+// ESPN supplied no role string we still show the name. Tab is hidden upstream
+// when there are zero officials, so this mainly guards against a stale call.
+function lmRenderReferees(eventId) {
+  const ev = _liveEvents[eventId];
+  const box = document.getElementById('lm-referees-view');
+  if (!box) return;
+  const escRef = s => String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const officials = (ev && ev.officials) || [];
+  if (!officials.length) {
+    box.innerHTML = `<div class="ln-tba">${t('ref_none')}</div>`;
+    return;
+  }
+  const rows = officials.map(o => {
+    const role = o.role ? `<span style="color:var(--muted);font-size:0.8rem">${escRef(o.role)}</span>` : '';
+    const country = o.country ? ` <span style="color:var(--muted)">(${escRef(o.country)})</span>` : '';
+    return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px">
+      ${role}
+      <span style="font-weight:600">${escRef(o.name)}${country}</span>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div style="padding:4px 0">${rows}</div>`;
 }
 
 function _lmTeamScorers(ev) {
