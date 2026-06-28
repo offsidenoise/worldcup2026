@@ -3080,13 +3080,22 @@ function ovGetQualified() {
     }
   }
 
-  // No KO results — show group stage qualifiers
+  // No KO results — show group stage qualifiers: top 2 of each completed group
+  // PLUS the 8 best third-placed teams. (12×2 + 8 = 32 spots in the Round of 32.)
   const qualified = [];
   GROUP_KEYS.forEach(g => {
     if (allMatchesPlayed(g)) {
       const st = calcStandings(g);
       if (st[0]) qualified.push({ name: st[0].name, flag: FLAGS[st[0].name] || '' });
       if (st[1]) qualified.push({ name: st[1].name, flag: FLAGS[st[1].name] || '' });
+    }
+  });
+  // Best thirds — only count those whose group has finished, so the list grows
+  // consistently with the top-2 additions above. Uses the same getBestThirds()
+  // ranking as the bracket and Results view (single source of truth).
+  getBestThirds().forEach(td => {
+    if (allMatchesPlayed(td.grp)) {
+      qualified.push({ name: td.name, flag: FLAGS[td.name] || '' });
     }
   });
   return {
