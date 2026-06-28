@@ -1502,6 +1502,41 @@ const POLY_ODDS = {
   'Morocco_Haiti':             [83,13,6],
 };
 
+// ============================================================
+// POLYMARKET / KALSHI — ROUND OF 32 head-to-head markets.
+// Captured June 27, 2026 from polymarket.com (3-way: team/draw/team) and
+// kalshi.com (2-way "advances"). Per the agreed rule these are stored RAW as
+// [pWin, pDraw, pLose]; blendedProbKO drops the draw and renormalizes the two
+// team values to 100 so the PM market is used directly (no model blend) for
+// any R32 matchup present here. Keyed Home_Away with reversed-key fallback.
+// 2-way Kalshi markets are stored as-is with pDraw=0 (normalization is a no-op).
+const POLY_KO = {
+  'USA_Bosnia':                [72, 19, 10],   // -> 88 / 12
+  'Australia_Egypt':           [29, 34, 39],   // -> 43 / 57
+  'Argentina_Cabo Verde':      [87, 11, 4],    // -> 96 / 4
+  'Netherlands_Morocco':       [46, 31, 25],   // -> 65 / 35
+  'Ivory Coast_Norway':        [26, 28, 48],   // -> 35 / 65
+  'France_Sweden':             [77, 17, 9],     // -> 90 / 10
+  'South Africa_Canada':       [17, 27, 58],   // -> 23 / 77
+  'Brazil_Japan':              [58, 24, 19],   // -> 75 / 25
+  'Germany_Paraguay':          [72, 19, 10],   // -> 88 / 12
+  'Mexico_Ecuador':            [61,  0, 39],   // Kalshi advances, 2-way as-is
+};
+
+// Return the PM head-to-head probabilities for a KO matchup with the draw
+// removed and the two team values renormalized to sum 100. null if not listed.
+function getPolyKO(home, away) {
+  const k = home+'_'+away, r = away+'_'+home;
+  let pH, pA;
+  if(POLY_KO[k]) { pH = POLY_KO[k][0]; pA = POLY_KO[k][2]; }
+  else if(POLY_KO[r]) { pH = POLY_KO[r][2]; pA = POLY_KO[r][0]; }
+  else return null;
+  const s = pH + pA;
+  if(s <= 0) return null;
+  const x = Math.max(3, Math.min(97, Math.round(pH / s * 100)));
+  return [x, 100 - x];
+}
+
 function getPolyOdds(home, away) {
   const key = home+'_'+away;
   const rkey = away+'_'+home;
@@ -1559,6 +1594,10 @@ const POLY_OUTRIGHT = {
 
 function blendedProbKO(home, away) {
   const model = calcProbKO(home, away);
+  // Direct PM/Kalshi head-to-head market takes precedence when available:
+  // use it as-is (draw already removed and renormalized), no model blend.
+  const pk = getPolyKO(home, away);
+  if(pk) return { probs:pk, source:'poly-ko' };
   const pHome = POLY_OUTRIGHT[home];
   const pAway = POLY_OUTRIGHT[away];
 
