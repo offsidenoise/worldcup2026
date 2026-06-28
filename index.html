@@ -174,8 +174,9 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 
 /* ── KNOCKOUT BRACKET ── */
 .bracket-container { overflow-x:auto; padding-bottom:20px; }
-.bracket-wrap { display:flex; gap:8px; min-width:1100px; align-items:stretch; }
+.bracket-wrap { display:flex; gap:8px; min-width:1500px; align-items:stretch; }
 .bracket-round { flex:1; display:flex; flex-direction:column; }
+.bracket-centre { flex:1.3; }
 .round-header { font-family:'Barlow Condensed',sans-serif; font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--accent); text-align:center; padding:8px 4px; border-bottom:1px solid var(--border); margin-bottom:8px; }
 .round-matches { flex:1; display:flex; flex-direction:column; justify-content:space-around; padding:4px; gap:6px; }
 .bracket-match { background:var(--card); border:1px solid var(--border); border-radius:6px; overflow:hidden; transition:border-color 0.2s; }
@@ -3402,41 +3403,75 @@ function renderGroups(){
 // ============================================================
 // RENDER — KNOCKOUT BRACKET (Results)
 // ============================================================
+// Derive the two bracket halves from the feed tree so the layout stays correct
+// if the seeding ever changes. Left half feeds SF 101, right half feeds SF 102.
+// Children are emitted adjacent (top→bottom) so the visual tree connects, and
+// the right half's rounds are reversed so it mirrors inward toward the centre.
+function _koBracketHalves(){
+  const r16=Object.fromEntries(R16_MATCHES.map(x=>[x.matchNum,x]));
+  const qf=Object.fromEntries(QF_MATCHES.map(x=>[x.matchNum,x]));
+  const r32Under=qfm=>{const q=qf[qfm];return [r16[q.h].h,r16[q.h].a,r16[q.a].h,r16[q.a].a];};
+  const half=sfm=>{const s=SF_MATCHES.find(x=>x.matchNum===sfm);
+    return {sf:[sfm], qf:[s.h,s.a], r16:[qf[s.h].h,qf[s.h].a,qf[s.a].h,qf[s.a].a],
+            r32:[...r32Under(s.h),...r32Under(s.a)]};};
+  return {L:half(101), R:half(102)};
+}
+
+function _koMatchNode(mn){
+  const m=state.knockout[mn]||{};
+  const {home,away,homePrelim,awayPrelim,homeDisplay,awayDisplay}=getKOMatchTeams(mn);
+  const fix=KO_FIXTURES[mn]||{};
+  if(mn===104&&m.winner){
+    const c=document.createElement('div'); c.className='ko-champion-card';
+    c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${tTeam(m.winner)}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
+    return c;
+  }
+  const el=buildBracketMatchEl(mn,home,away,m.winner,fix,homePrelim,awayPrelim,homeDisplay,awayDisplay);
+  if(mn===103){ el.style.borderColor='rgba(91,155,213,0.4)'; el.style.background='rgba(91,155,213,0.05)'; }
+  return el;
+}
+
+function _koColumn(label, matchNums, headerStyle){
+  const rd=document.createElement('div'); rd.className='bracket-round';
+  rd.innerHTML=`<div class="round-header" style="${headerStyle||''}">${label}</div>`;
+  const md=document.createElement('div'); md.className='round-matches';
+  matchNums.forEach(mn=>md.appendChild(_koMatchNode(mn)));
+  rd.appendChild(md);
+  return rd;
+}
+
 function renderKnockout(){
   const wrap=document.getElementById('bracket-wrap');
   wrap.innerHTML='';
-  const rounds=[
-    {key:'R32',  label:'Round of 32',   matches:R32_SEEDS.map(s=>s.matchNum), bronze:false, labelKey:'round_r32'},
-    {key:'R16',  label:'Round of 16',   matches:R16_MATCHES.map(s=>s.matchNum), bronze:false, labelKey:'round_r16'},
-    {key:'QF',   label:'Quarterfinals', matches:QF_MATCHES.map(s=>s.matchNum), bronze:false},
-    {key:'SF',   label:'Semifinals',    matches:SF_MATCHES.map(s=>s.matchNum), bronze:false},
-    {key:'3RD',  label:'3rd Place',     matches:[103], bronze:true, labelKey:'round_3rd'},
-    {key:'FINAL',label:'Final',         matches:[104], bronze:false, labelKey:'round_final'},
-  ];
-  rounds.forEach(round=>{
-    const rd=document.createElement('div'); rd.className='bracket-round';
-    const headerStyle=round.bronze?'color:#5b9bd5;border-bottom-color:#5b9bd5;':'';
-    rd.innerHTML=`<div class="round-header" style="${headerStyle}">${round.label}</div>`;
-    const md=document.createElement('div'); md.className='round-matches';
-    round.matches.forEach(mn=>{
-      const m=state.knockout[mn]||{};
-      const {home,away,homePrelim,awayPrelim,homeDisplay,awayDisplay}=getKOMatchTeams(mn);
-      const fix=KO_FIXTURES[mn]||{};
-      if(mn===104&&m.winner){
-        const c=document.createElement('div'); c.className='ko-champion-card';
-        c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${tTeam(m.winner)}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
-        md.appendChild(c);
-      } else {
-        const el=buildBracketMatchEl(mn,home,away,m.winner,fix,homePrelim,awayPrelim,homeDisplay,awayDisplay);
-        if(round.bronze){
-          el.style.borderColor='rgba(91,155,213,0.4)';
-          el.style.background='rgba(91,155,213,0.05)';
-        }
-        md.appendChild(el);
-      }
-    });
-    rd.appendChild(md); wrap.appendChild(rd);
-  });
+  const {L,R}=_koBracketHalves();
+  const lbl={r32:t('round_r32')||'Round of 32', r16:t('round_r16')||'Round of 16',
+             qf:t('round_qf')||'Quarterfinals', sf:t('round_sf')||'Semifinals',
+             fin:t('round_final')||'Final', third:t('round_3rd')||'3rd Place'};
+
+  // Left half, flowing rightward toward the centre.
+  wrap.appendChild(_koColumn(lbl.r32, L.r32));
+  wrap.appendChild(_koColumn(lbl.r16, L.r16));
+  wrap.appendChild(_koColumn(lbl.qf,  L.qf));
+  wrap.appendChild(_koColumn(lbl.sf,  L.sf));
+
+  // Centre column: Final on top, 3rd-place beneath.
+  const centre=document.createElement('div'); centre.className='bracket-round bracket-centre';
+  centre.innerHTML=`<div class="round-header">${lbl.fin}</div>`;
+  const cm=document.createElement('div'); cm.className='round-matches';
+  cm.appendChild(_koMatchNode(104));
+  const thirdHead=document.createElement('div'); thirdHead.className='round-header';
+  thirdHead.style.cssText='color:#5b9bd5;border-bottom-color:#5b9bd5;margin-top:18px;';
+  thirdHead.textContent=lbl.third;
+  cm.appendChild(thirdHead);
+  cm.appendChild(_koMatchNode(103));
+  centre.appendChild(cm);
+  wrap.appendChild(centre);
+
+  // Right half, mirrored: rounds reversed so it flows leftward toward the centre.
+  wrap.appendChild(_koColumn(lbl.sf,  R.sf));
+  wrap.appendChild(_koColumn(lbl.qf,  R.qf));
+  wrap.appendChild(_koColumn(lbl.r16, R.r16));
+  wrap.appendChild(_koColumn(lbl.r32, R.r32));
 }
 
 function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim, homeDisplay, awayDisplay){
@@ -7575,14 +7610,14 @@ function lmRenderReferees(eventId) {
     return;
   }
   const rows = officials.map(o => {
-    const role = o.role ? `<span style="color:var(--muted);font-size:0.8rem">${escRef(o.role)}</span>` : '';
-    const country = o.country ? ` <span style="color:var(--muted)">(${escRef(o.country)})</span>` : '';
+    const role = o.role ? `<span style="color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:1px">${escRef(o.role)}</span>` : '';
+    const country = o.country ? ` <span style="color:var(--muted);font-weight:500">(${escRef(o.country)})</span>` : '';
     return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px">
       ${role}
-      <span style="font-weight:600">${escRef(o.name)}${country}</span>
+      <span style="font-weight:600;font-size:0.95rem">${escRef(o.name)}${country}</span>
     </div>`;
   }).join('');
-  box.innerHTML = `<div style="padding:4px 0">${rows}</div>`;
+  box.innerHTML = `<div style="font-family:'Barlow Condensed',sans-serif;padding:4px 0">${rows}</div>`;
 }
 
 function _lmTeamScorers(ev) {
