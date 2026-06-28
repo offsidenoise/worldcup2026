@@ -188,6 +188,7 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .bracket-team.tbd { color:var(--muted); font-style:italic; }
 .bracket-team.prelim { color:var(--muted); font-style:italic; }
 .bracket-divider { height:1px; background:var(--border); }
+.bracket-flag { font-size:0.95rem; flex-shrink:0; line-height:1; }
 .bracket-score { min-width:14px; text-align:center; font-size:0.75rem; color:var(--muted); margin-left:auto; flex-shrink:0; }
 .bracket-score.w { color:var(--accent2); font-weight:700; }
 .bracket-meta { font-family:'Barlow Condensed',sans-serif; font-size:0.62rem; color:var(--muted); padding:2px 8px 4px; border-top:1px solid rgba(30,45,61,0.4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -3423,7 +3424,7 @@ function _koMatchNode(mn){
   const fix=KO_FIXTURES[mn]||{};
   if(mn===104&&m.winner){
     const c=document.createElement('div'); c.className='ko-champion-card';
-    c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${tTeam(m.winner)}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
+    c.innerHTML=`<span style="font-size:1.4rem">🏆</span><span class="ko-champion-label" style="display:block;margin:4px 0">${t('world_champion')}</span><span class="ko-champion-name">${FLAGS[m.winner]?FLAGS[m.winner]+' ':''}${tTeam(m.winner)}</span><div style="font-family:'Barlow Condensed';font-size:0.65rem;color:var(--muted);margin-top:6px;">${fix.date||''}${fix.venue?' · '+fix.venue:''}</div>`;
     return c;
   }
   const el=buildBracketMatchEl(mn,home,away,m.winner,fix,homePrelim,awayPrelim,homeDisplay,awayDisplay);
@@ -3493,13 +3494,19 @@ function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim
   const hClick = hClickTeam ? `onclick="advanceBracketTeam(${mn},'${hClickTeam.replace(/'/g,"\\'")}')"` : '';
   const aClick = aClickTeam ? `onclick="advanceBracketTeam(${mn},'${aClickTeam.replace(/'/g,"\\'")}')"` : '';
 
+  // Flag shown only once a real team occupies the slot (FLAGS is keyed by the
+  // actual team name in `home`/`away`; placeholders like "1st Group A" have no
+  // entry and so render flagless).
+  const hFlag = home && FLAGS[home] ? `<span class="bracket-flag">${FLAGS[home]}</span>` : '';
+  const aFlag = away && FLAGS[away] ? `<span class="bracket-flag">${FLAGS[away]}</span>` : '';
+
   el.innerHTML=`
     <div class="bracket-team ${hClass}" ${hClick}>
-      <span style="flex:1">${hD}</span>${m.homeScore!=null?`<span class="bracket-score ${hW?'w':''}">${m.homeScore}</span>`:''}
+      ${hFlag}<span style="flex:1">${hD}</span>${m.homeScore!=null?`<span class="bracket-score ${hW?'w':''}">${m.homeScore}</span>`:''}
     </div>
     <div class="bracket-divider"></div>
     <div class="bracket-team ${aClass}" ${aClick}>
-      <span style="flex:1">${aD}</span>${m.awayScore!=null?`<span class="bracket-score ${aW?'w':''}">${m.awayScore}</span>`:''}
+      ${aFlag}<span style="flex:1">${aD}</span>${m.awayScore!=null?`<span class="bracket-score ${aW?'w':''}">${m.awayScore}</span>`:''}
     </div>
     <div class="bracket-meta"><span class="match-num">${f.label||'M'+mn}</span>${(()=>{const kdt=getFixtureTime(mn);if(!kdt)return f.date?' · '+f.date:'';const kd=kdt.toLocaleDateString([],{month:'short',day:'numeric'});const kt=formatKickoff(kdt);return ' · '+kd+' · '+kt;})()}${f.venue?' · '+tVenue(f.venue):''}</div>`;
   return el;
