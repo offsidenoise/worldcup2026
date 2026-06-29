@@ -6332,9 +6332,13 @@ async function globalRefresh(){
   try{
     const dateRanges=['20260611-20260627','20260628-20260719'];
     const allEvents=[];
-    for(const dates of dateRanges){
-      try{const r=await espnFetch(BASE+'/scoreboard?dates='+dates+'&limit=100');if(!r.ok)continue;const d=await r.json();(d.events||[]).forEach(e=>allEvents.push(e));}catch(e){}
-    }
+    // Fetch the date-range scoreboards in parallel rather than sequentially —
+    // they're independent, so awaiting them together roughly halves the wait
+    // before the Overview can repaint.
+    const rangeResults=await Promise.all(dateRanges.map(async dates=>{
+      try{const r=await espnFetch(BASE+'/scoreboard?dates='+dates+'&limit=100');if(!r.ok)return null;return await r.json();}catch(e){return null;}
+    }));
+    rangeResults.forEach(d=>{ if(d)(d.events||[]).forEach(e=>allEvents.push(e)); });
     const todayISO=new Date().toLocaleDateString('en-CA').replace(/-/g,'');
     try{const r=await espnFetch(BASE+'/scoreboard?dates='+todayISO+'&limit=50');if(r.ok){const d=await r.json();(d.events||[]).forEach(e=>{if(!allEvents.find(x=>x.id===e.id))allEvents.push(e);});}}catch(e){}
     const completed=allEvents.filter(e=>e.status?.type?.completed===true);
@@ -6413,6 +6417,31 @@ async function globalRefresh(){
         if(updated) resultsUpdated++;
       }catch(e){}
     }
+
+    // ── Early repaint ──────────────────────────────────────────────────────
+    // Everything the Overview needs (scores, qualifiers, today/next tiles) is
+    // already applied above. The remaining passes — per-match summary
+    // aggregation for player stats, and _liveFetchAll for lineups/officials —
+    // are slower (one fetch per completed match) and only feed the Stats and
+    // live-modal views. Paint the Overview now so it doesn't sit on
+    // "Refreshing…" for the full fetch chain; the heavier passes continue below
+    // and refresh Stats when they land.
+    if(resultsUpdated>0){
+      saveState(); renderAll();
+      const _ex=getNotificationStore();
+      const _today=new Date().toDateString();
+      setNotificationStore((_ex.date===_today?_ex.count:0)+resultsUpdated);
+      showNotification();
+    } else {
+      renderTodayMatches(); renderOverview();
+    }
+    // Stamp the timestamp now and drop the spinner label early; the background
+    // passes don't change anything the user is looking at on the Overview.
+    {
+      const _ts=new Date().toLocaleString(LANG==='es'?'es':[],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      label.textContent=_ts; try{localStorage.setItem('wc2026lastrefresh',_ts);}catch(e){}
+    }
+
     if(completed.length>0){
       // Per-player goals & cards. ESPN's SCOREBOARD feed usually omits the detailed
       // competition.details[] (those live in the per-match summary), so relying on the
@@ -6571,17 +6600,13 @@ async function globalRefresh(){
         p.games = (g!=null) ? g : 0;
       });
     }
-    if(resultsUpdated>0){
-      saveState(); renderAll();
-      const existing=getNotificationStore();
-      const today=new Date().toDateString();
-      setNotificationStore((existing.date===today?existing.count:0)+resultsUpdated);
-    }
-    showNotification(); renderTodayMatches();
-    // Update live match data
-    try { await _liveFetchAll(espnFetch); renderTodayMatches(); } catch(e) {}
-    const ts=new Date().toLocaleString(LANG==='es'?'es':[],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    label.textContent=ts; try{localStorage.setItem('wc2026lastrefresh',ts);}catch(e){}
+    // The summary pass above updated player stats (goals/cards/games). Persist
+    // them and refresh the Stats view if it's the active page. Overview render
+    // and notification counting already happened in the early-repaint block, so
+    // they are intentionally NOT repeated here.
+    if(resultsUpdated>0){ saveState(); }
+    // Update live match data (lineups/officials) for the live modal.
+    try { await _liveFetchAll(espnFetch); } catch(e) {}
     if(document.getElementById('page-stats')?.classList.contains('active')) renderStatsPage();
   }catch(e){label.textContent=t('refresh_failed');console.error(e);}
   btn.classList.remove('spinning'); btn.disabled=false;
