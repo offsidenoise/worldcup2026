@@ -189,6 +189,8 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .bracket-team.prelim { color:var(--muted); font-style:italic; }
 .bracket-divider { height:1px; background:var(--border); }
 .bracket-flag { font-size:0.95rem; flex-shrink:0; line-height:1; }
+.bracket-pen { font-size:0.7rem; color:var(--muted); margin-left:3px; font-weight:600; }
+.bracket-pen-note { font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; color:var(--muted); margin-top:12px; font-style:italic; }
 .bracket-score { min-width:14px; text-align:center; font-size:0.75rem; color:var(--muted); margin-left:auto; flex-shrink:0; }
 .bracket-score.w { color:var(--accent2); font-weight:700; }
 .bracket-meta { font-family:'Barlow Condensed',sans-serif; font-size:0.62rem; color:var(--muted); padding:2px 8px 4px; border-top:1px solid rgba(30,45,61,0.4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1086,6 +1088,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
       <div class="bracket-container">
         <div class="bracket-wrap" id="bracket-wrap"></div>
       </div>
+      <div class="bracket-pen-note" id="bracket-pen-note" data-i18n="ko_pen_note">Scores in parentheses indicate the penalty shootout result.</div>
     </div>
   </div>
 
@@ -3548,13 +3551,20 @@ function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim
   const hFlag = home && FLAGS[home] ? `<span class="bracket-flag">${FLAGS[home]}</span>` : '';
   const aFlag = away && FLAGS[away] ? `<span class="bracket-flag">${FLAGS[away]}</span>` : '';
 
+  // Penalty-shootout scores in parentheses next to the regulation score, shown
+  // only when the tie went to penalties (both pen values present). Explained by
+  // the footnote under the bracket.
+  const hasPens = m.homePen!=null && m.awayPen!=null;
+  const hPen = hasPens ? `<span class="bracket-pen">(${m.homePen})</span>` : '';
+  const aPen = hasPens ? `<span class="bracket-pen">(${m.awayPen})</span>` : '';
+
   el.innerHTML=`
     <div class="bracket-team ${hClass}" ${hClick}>
-      ${hFlag}<span style="flex:1">${hD}</span>${m.homeScore!=null?`<span class="bracket-score ${hW?'w':''}">${m.homeScore}</span>`:''}
+      ${hFlag}<span style="flex:1">${hD}</span>${m.homeScore!=null?`<span class="bracket-score ${hW?'w':''}">${m.homeScore}${hPen}</span>`:''}
     </div>
     <div class="bracket-divider"></div>
     <div class="bracket-team ${aClass}" ${aClick}>
-      ${aFlag}<span style="flex:1">${aD}</span>${m.awayScore!=null?`<span class="bracket-score ${aW?'w':''}">${m.awayScore}</span>`:''}
+      ${aFlag}<span style="flex:1">${aD}</span>${m.awayScore!=null?`<span class="bracket-score ${aW?'w':''}">${m.awayScore}${aPen}</span>`:''}
     </div>
     <div class="bracket-meta"><span class="match-num">${f.label||'M'+mn}</span>${(()=>{const kdt=getFixtureTime(mn);if(!kdt)return f.date?' · '+f.date:'';const kd=kdt.toLocaleDateString([],{month:'short',day:'numeric'});const kt=formatKickoff(kdt);return ' · '+kd+' · '+kt;})()}${f.venue?' · '+tVenue(f.venue):''}</div>`;
   return el;
@@ -5942,6 +5952,8 @@ const STRINGS = {
   round_f:      {en:'Final',         es:'Final'},
   round_3rd:    {en:'3rd Place',     es:'Tercer Puesto'},
   round_final:  {en:'Final',         es:'Final'},
+  ko_pen_note:  {en:'Scores in parentheses indicate the penalty shootout result.',
+                 es:'Los resultados entre paréntesis indican la tanda de penales.'},
   // Stats tabs
   stats_teams:     {en:'Teams',     es:'Equipos'},
   stats_goals:     {en:'Goals',     es:'Goles'},
@@ -6371,6 +6383,15 @@ async function globalRefresh(){
         const awayName=normalizeESPNTeam(awayComp.team?.displayName||awayComp.team?.name||'');
         const homeScore=parseInt(homeComp.score)||0;
         const awayScore=parseInt(awayComp.score)||0;
+        // Penalty-shootout scores (knockout ties level after regulation). ESPN
+        // exposes these as competitor.shootoutScore on the scoreboard feed;
+        // parse defensively and only treat as a real shootout when both regular
+        // scores are level and at least one shootout value is present.
+        const homePenRaw=parseInt(homeComp.shootoutScore);
+        const awayPenRaw=parseInt(awayComp.shootoutScore);
+        const hasShootout=(homeScore===awayScore)&&(Number.isFinite(homePenRaw)||Number.isFinite(awayPenRaw))&&(homePenRaw>0||awayPenRaw>0);
+        const homePen=hasShootout?(Number.isFinite(homePenRaw)?homePenRaw:0):null;
+        const awayPen=hasShootout?(Number.isFinite(awayPenRaw)?awayPenRaw:0):null;
         if(!homeName||!awayName) continue;
         let updated=false;
         for(const g of GROUP_KEYS){
@@ -6404,10 +6425,17 @@ async function globalRefresh(){
             if(koDirect||koReversed){
               const hS = koDirect ? homeScore : awayScore;
               const aS = koDirect ? awayScore : homeScore;
+              const hP = koDirect ? homePen : awayPen;
+              const aP = koDirect ? awayPen : homePen;
               if(!state.knockout[mn]) state.knockout[mn]={};
               state.knockout[mn].home=home; state.knockout[mn].away=away;
               state.knockout[mn].homeScore=hS; state.knockout[mn].awayScore=aS;
-              state.knockout[mn].winner=hS>aS?home:away;
+              // Penalty scores stored alongside; null when no shootout.
+              state.knockout[mn].homePen=hP; state.knockout[mn].awayPen=aP;
+              // Winner: regulation decides unless level, then the shootout does.
+              state.knockout[mn].winner = (hS!==aS) ? (hS>aS?home:away)
+                : (hP!=null&&aP!=null&&hP!==aP) ? (hP>aP?home:away)
+                : (hS>aS?home:away);
               state.knockout[mn]._espnId=event.id;
               if(state.predictions.knockout[mn]) delete state.predictions.knockout[mn];
               cascadeClearKO(mn); updated=true; break;
