@@ -6759,7 +6759,11 @@ function _liveParseLineup(sumJson, teamName) {
           espnId:   a.id || '',
           name:     a.displayName || a.shortName || '',
           jersey:   a.jersey || '',
-          headshot: a.headshot?.href || '',
+          // Same fallback as the roster path: ESPN boxscore athlete objects
+          // usually carry only `id`, not an inline headshot href, so build the
+          // CDN URL from the id when the inline one is missing. Without this the
+          // detail view fell back to the country flag even though a photo exists.
+          headshot: a.headshot?.href || (a.id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${a.id}.png` : ''),
           position: a.position?.abbreviation || '',
           starter:  athlete.starter === true,
           active:   athlete.active !== false,
