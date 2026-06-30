@@ -187,6 +187,8 @@ main { max-width:1440px; margin:0 auto; padding:24px 24px 60px; }
 .bracket-team.loser { color:var(--muted); }
 .bracket-team.tbd { color:var(--muted); font-style:italic; }
 .bracket-team.prelim { color:var(--muted); font-style:italic; }
+.bracket-team.final { cursor:default; }
+.bracket-team.final:hover { background:transparent; }
 .bracket-divider { height:1px; background:var(--border); }
 .bracket-flag { font-size:0.95rem; flex-shrink:0; line-height:1; }
 .bracket-pen { font-size:0.7rem; color:var(--muted); margin-left:3px; font-weight:600; }
@@ -2616,9 +2618,13 @@ function propagateKO(matchNum, winner, loser) {
 
 function advanceBracketTeam(matchNum, team) {
   if(!team||team==='TBD') return;
+  const m=state.knockout[matchNum];
+  // A match with a real score entered (from the ESPN refresh) is final — its
+  // winner is decided by the score/penalties and must not be overridden by a
+  // tap. Only manually-advanced matches (no score) stay tap-editable.
+  if(m && m.homeScore!=null) return;
   const {home,away}=getKOMatchTeams(matchNum);
   const loser=team===home?away:home;
-  const m=state.knockout[matchNum];
   m.winner=team; m.home=home; m.away=away; m.loser=loser||null;
   propagateKO(matchNum, team, loser);
   saveState(); renderAll();
@@ -3537,13 +3543,17 @@ function buildBracketMatchEl(mn, home, away, winner, fix, homePrelim, awayPrelim
 
   // Use 'winner' class only for score-confirmed results, 'prelim' for manual advances
   const manualWinner = !m.homeScore&&winner ? winner : null;
-  const hClass = hW?'winner' : (confirmedWinner&&!hW)?'loser' : manualWinner===home?'prelim' : homePrelim?'prelim' : '';
-  const aClass = aW?'winner' : (confirmedWinner&&!aW)?'loser' : manualWinner===away?'prelim' : awayPrelim?'prelim' : '';
-  // Click uses the real team name (home/away), not the display string
+  // A match with a real score is final: no tap-to-advance, no pointer cursor.
+  const isFinal = m.homeScore!=null;
+  const finalCls = isFinal ? ' final' : '';
+  const hClass = (hW?'winner' : (confirmedWinner&&!hW)?'loser' : manualWinner===home?'prelim' : homePrelim?'prelim' : '')+finalCls;
+  const aClass = (aW?'winner' : (confirmedWinner&&!aW)?'loser' : manualWinner===away?'prelim' : awayPrelim?'prelim' : '')+finalCls;
+  // Click uses the real team name (home/away), not the display string.
+  // Final matches (real score) get no click handler — they can't be re-advanced.
   const hClickTeam = home||'';
   const aClickTeam = away||'';
-  const hClick = hClickTeam ? `onclick="advanceBracketTeam(${mn},'${hClickTeam.replace(/'/g,"\\'")}')"` : '';
-  const aClick = aClickTeam ? `onclick="advanceBracketTeam(${mn},'${aClickTeam.replace(/'/g,"\\'")}')"` : '';
+  const hClick = (!isFinal && hClickTeam) ? `onclick="advanceBracketTeam(${mn},'${hClickTeam.replace(/'/g,"\\'")}')"` : '';
+  const aClick = (!isFinal && aClickTeam) ? `onclick="advanceBracketTeam(${mn},'${aClickTeam.replace(/'/g,"\\'")}')"` : '';
 
   // Flag shown only once a real team occupies the slot (FLAGS is keyed by the
   // actual team name in `home`/`away`; placeholders like "1st Group A" have no
