@@ -2301,8 +2301,9 @@ function calcProbKO(teamA, teamB) {
   // Floor of 35 ensures any WC-qualified team is treated as a credible opponent
   const csA = Math.max(35, compositeStrength(teamA));
   const csB = Math.max(35, compositeStrength(teamB));
-  // k=2 exponent spreads probabilities to better reflect quality gaps
-  const pA2 = Math.pow(csA, 2), pB2 = Math.pow(csB, 2);
+  // k=1.1 exponent: very mild spread on quality gaps, nearly a plain strength
+  // ratio. Higher k over-sharpens favorites; this keeps KO upsets live.
+  const pA2 = Math.pow(csA, 1.1), pB2 = Math.pow(csB, 1.1);
   const total = pA2 + pB2;
   const pA = total > 0 ? Math.round(pA2 / total * 100) : 50;
   return [Math.max(3, Math.min(97, pA)), Math.max(3, Math.min(97, 100 - pA))];
@@ -6733,7 +6734,12 @@ function _liveParseLineup(sumJson, teamName) {
         espnId:   a.id || '',
         name:     a.displayName || a.shortName || a.fullName || '',
         jersey:   entry.jersey || a.jersey || '',
-        headshot: a.headshot?.href || (a.id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${a.id}.png` : ''),
+        // Only use ESPN's inline headshot href. Real ESPN data (verified) omits
+        // the inline headshot for players it has no photo on file for; the URL
+        // format is correct but constructing full/{id}.png for those players just
+        // 404s -> onerror -> flag, wasting a request and flashing a broken image.
+        // Fall straight to the country flag when there is no inline href.
+        headshot: a.headshot?.href || '',
         position: entry.position?.abbreviation || a.position?.abbreviation || '',
         starter:  entry.starter === true,
         subbedIn: entry.subbedIn === true,
@@ -6759,11 +6765,11 @@ function _liveParseLineup(sumJson, teamName) {
           espnId:   a.id || '',
           name:     a.displayName || a.shortName || '',
           jersey:   a.jersey || '',
-          // Same fallback as the roster path: ESPN boxscore athlete objects
-          // usually carry only `id`, not an inline headshot href, so build the
-          // CDN URL from the id when the inline one is missing. Without this the
-          // detail view fell back to the country flag even though a photo exists.
-          headshot: a.headshot?.href || (a.id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${a.id}.png` : ''),
+          // Only use ESPN's inline headshot href (same rule as the roster path).
+          // A missing inline href means ESPN has no photo on file for this
+          // player, so building full/{id}.png would 404 -> onerror -> flag.
+          // Fall straight to the flag instead of issuing a doomed request.
+          headshot: a.headshot?.href || '',
           position: a.position?.abbreviation || '',
           starter:  athlete.starter === true,
           active:   athlete.active !== false,
@@ -8007,6 +8013,16 @@ function pmOpen(playerJson) {
     matchReds    = ev.reds[pid] || ev.reds[name] || 0;
   }
 
+  // Tournament totals are aggregated from COMPLETED matches only (see the
+  // globalRefresh rebuild), so an in-progress match's goals/cards are not yet
+  // in statsData. While this match is live, fold them into the tournament
+  // total so the headline figure reflects what's happened so far. Once the
+  // match completes and stats refresh, tGoals includes it and `ev` is gone,
+  // so there is no double-count.
+  const tGoalsTotal   = tGoals   + matchGoals;
+  const tYellowsTotal = tYellows + matchYellows;
+  const tRedsTotal    = tReds    + matchReds;
+
   const es = (LANG === 'es');
   const L = {
     tourn:   es ? 'Estadísticas del torneo' : 'Tournament Stats',
@@ -8019,9 +8035,9 @@ function pmOpen(playerJson) {
   document.getElementById('pm-body').innerHTML = `
     <div class="pm-section-title">${L.tourn}</div>
     <div class="pm-stats">
-      <div class="pm-stat"><div class="pm-stat-label">⚽ ${L.goals}</div><div class="pm-stat-val">${tGoals}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟨 ${L.yellows}</div><div class="pm-stat-val">${tYellows}</div></div>
-      <div class="pm-stat"><div class="pm-stat-label">🟥 ${L.reds}</div><div class="pm-stat-val">${tReds}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">⚽ ${L.goals}</div><div class="pm-stat-val">${tGoalsTotal}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟨 ${L.yellows}</div><div class="pm-stat-val">${tYellowsTotal}</div></div>
+      <div class="pm-stat"><div class="pm-stat-label">🟥 ${L.reds}</div><div class="pm-stat-val">${tRedsTotal}</div></div>
       <div class="pm-stat"><div class="pm-stat-label">🎮 ${L.games}</div><div class="pm-stat-val">${tGames}</div></div>
     </div>
     ${ev ? `
