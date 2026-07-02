@@ -1518,33 +1518,80 @@ const POLY_ODDS = {
 // Raw [pWin, pDraw, pLose] cents from Polymarket (3-way) / Kalshi (2-way).
 // getPolyKO drops the draw and renormalizes the two team values to 100.
 // Keys are Home_Away using the first-listed team as home; canonical team names.
+// Each KO matchup can carry up to two odds sources:
+//   pm:     Polymarket 3-way raw cents  [pWin, pDraw, pLose]  (draw dropped)
+//   kalshi: Kalshi 2-way raw cents      [yesHome, yesAway]    (already 2-way)
+// getPolyKO normalizes whichever sources exist to a two-team split summing 100,
+// then—if BOTH exist—blends them 50/50. Keys are Home_Away, canonical names.
+// Storing both sources (rather than a pre-blended number) keeps it auditable and
+// lets the blend recompute automatically when either source is updated.
 const POLY_KO = {
-  'England_Mexico':            [51,  0, 49],   // Kalshi advances, 2-way as-is -> 51 / 49
-  'Canada_Morocco':            [19, 28, 54],   // -> 26 / 74
-  'Paraguay_France':           [ 5, 13, 84],   // -> 6 / 94
-  'Brazil_Norway':             [52, 27, 23],   // -> 69 / 31
-  'Argentina_Cabo Verde':      [85, 12,  4],   // -> 96 / 4  (3.9c -> 4)
-  'Colombia_Ghana':            [65, 25, 12],   // -> 84 / 16
-  'Portugal_Croatia':          [55, 28, 19],   // -> 74 / 26
-  'Switzerland_Algeria':       [48, 30, 23],   // -> 68 / 32
-  'Australia_Egypt':           [29, 34, 39],   // -> 43 / 57
-  'Belgium_Senegal':           [49, 29, 24],   // -> 67 / 33
-  'USA_Bosnia':                [72, 20, 11],   // -> 87 / 13
-  'Spain_Austria':             [74, 18,  9],   // -> 89 / 11
+  'England_Mexico':       { kalshi: [51, 49] },                 // 2-way -> 51 / 49
+  'Canada_Morocco':       { pm: [19, 28, 54] },                 // -> 26 / 74
+  'Paraguay_France':      { pm: [ 5, 13, 84] },                 // -> 6 / 94
+  'Brazil_Norway':        { pm: [52, 27, 23], kalshi: [65, 35] },// PM 69/31 + K 65/35 -> 67/33
+  'Argentina_Cabo Verde': { pm: [85, 12,  4] },                 // -> 96 / 4
+  'Colombia_Ghana':       { pm: [65, 25, 12] },                 // -> 84 / 16
+  'Portugal_Croatia':     { pm: [55, 28, 19] },                 // -> 74 / 26
+  'Switzerland_Algeria':  { pm: [48, 30, 23] },                 // -> 68 / 32
+  'Australia_Egypt':      { pm: [29, 34, 39] },                 // -> 43 / 57
+  'Belgium_Senegal':      { pm: [49, 29, 24] },                 // -> 67 / 33
+  'USA_Bosnia':           { pm: [72, 20, 11] },                 // -> 87 / 13
+  'Spain_Austria':        { pm: [74, 18,  9] },                 // -> 89 / 11
+  'USA_Belgium':          { kalshi: [53, 47] },                 // 2-way -> 53 / 47
 };
 
-// Return the PM head-to-head probabilities for a KO matchup with the draw
-// removed and the two team values renormalized to sum 100. null if not listed.
+// Normalize a single source to an unrounded [home%, away%] summing to 100.
+function _koNormSource(src, kind) {
+  let h, a;
+  if (kind === 'pm')     { h = src[0]; a = src[2]; }   // drop draw (src[1])
+  else                   { h = src[0]; a = src[1]; }   // kalshi 2-way
+  const s = h + a;
+  if (s <= 0) return null;
+  return [h / s * 100, a / s * 100];   // keep fractional; round after blending
+}
+
+// Round a fractional home% to an integer, giving the exact .5 to the UNDERDOG
+// (the lower-probability side) so the split reads slightly more competitive.
+// Then clamp to [3,97] and return [home, away].
+function _koRoundUnderdog(homePct) {
+  const awayPct = 100 - homePct;
+  let h;
+  const frac = homePct - Math.floor(homePct);
+  if (Math.abs(frac - 0.5) < 1e-9) {
+    // Exact half: round toward whichever side is the underdog.
+    // If home is the underdog (home < away) it should gain the point -> ceil.
+    // If away is the underdog it should gain the point -> home floors.
+    h = (homePct < awayPct) ? Math.ceil(homePct) : Math.floor(homePct);
+  } else {
+    h = Math.round(homePct);
+  }
+  h = Math.max(3, Math.min(97, h));
+  return [h, 100 - h];
+}
+
+// Return the blended head-to-head [home%, away%] for a KO matchup, or null.
 function getPolyKO(home, away) {
   const k = home+'_'+away, r = away+'_'+home;
-  let pH, pA;
-  if(POLY_KO[k]) { pH = POLY_KO[k][0]; pA = POLY_KO[k][2]; }
-  else if(POLY_KO[r]) { pH = POLY_KO[r][2]; pA = POLY_KO[r][0]; }
+  let entry, reversed = false;
+  if (POLY_KO[k])      { entry = POLY_KO[k]; }
+  else if (POLY_KO[r]) { entry = POLY_KO[r]; reversed = true; }
   else return null;
-  const s = pH + pA;
-  if(s <= 0) return null;
-  const x = Math.max(3, Math.min(97, Math.round(pH / s * 100)));
-  return [x, 100 - x];
+
+  // Collect each available source, normalized to THIS call's home/away order.
+  const parts = [];
+  for (const kind of ['pm', 'kalshi']) {
+    if (!entry[kind]) continue;
+    let n = _koNormSource(entry[kind], kind);   // [storedHome%, storedAway%]
+    if (!n) continue;
+    if (reversed) n = [n[1], n[0]];             // flip to requested orientation
+    parts.push(n);
+  }
+  if (parts.length === 0) return null;
+
+  // 50/50 blend across available sources (mean of the home% values).
+  const homePct = parts.reduce((sum, p) => sum + p[0], 0) / parts.length;
+  return _koRoundUnderdog(homePct);
 }
 
 function getPolyOdds(home, away) {
