@@ -1692,10 +1692,18 @@ function _kalshiStore(homeName, awayName, yesForName, yesPrice) {
 
 // Parse a Kalshi market object into the cache. Returns true if stored.
 function _kalshiParseMarket(m) {
-  if (!m || !m.ticker) return false;
-  // Ticker tail is two 3-letter codes, e.g. ...USABEL -> usa, bel.
-  const tail = String(m.ticker).split('-').pop().toLowerCase();  // e.g. 26jul06usabel
-  const codes = tail.slice(-6);                                  // usabel
+  if (!m) return false;
+  // Market tickers may carry a trailing side suffix (e.g. ...USABEL-USA), like
+  // Kalshi's other sports markets. The clean matchup form is the segment that
+  // matches 26<mon><dd><6 letters> — find THAT, not just the last segment.
+  // event_ticker is usually already the clean form, so try it first.
+  const src = String(m.event_ticker || m.ticker || '');
+  let codes = null;
+  for (const seg of src.toLowerCase().split('-')) {
+    const mm = seg.match(/^26[a-z]{3}\d{2}([a-z]{6})$/);   // e.g. 26jul06usabel
+    if (mm) { codes = mm[1]; break; }
+  }
+  if (!codes) return false;
   const cA = codes.slice(0,3), cB = codes.slice(3,6);
   const nameA = KALSHI.codeToName[cA], nameB = KALSHI.codeToName[cB];
   if (!nameA || !nameB) return false;
