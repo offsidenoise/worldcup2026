@@ -1649,38 +1649,32 @@ const POLY_OUTRIGHT = {
   'Saudi Arabia':0.2,'Ecuador':0.2,'Algeria':0.2,'Austria':0.2,
 };
 
-// ── KALSHI LIVE ODDS (dormant until a proxy/Worker URL is provided) ──────────
-// Kalshi's World Cup "advances" markets live under series KXWCADVANCE, with
-// per-matchup tickers of the form KXWCADVANCE-26<DDMON><TEAMS>, e.g.
-// KXWCADVANCE-26JUL06USABEL (schema confirmed from a real market response).
-// Each market resolves Yes if one specific team advances; price in dollars
-// (0.00–1.00). We read the yes price, x100 -> cents, and map to [home,away].
+// ── KALSHI LIVE ODDS (direct fetch, no proxy) ───────────────────────────────
+// Kalshi's World Cup "advances" markets live under series KXWCADVANCE. Each
+// market resolves Yes if one team advances; price is decimal dollars (0–1).
+// We fetch the whole open series in one direct call on load, parse each market,
+// and cache a normalized [home%,away%]. blendedProbKO then prefers live data
+// (tagged '[K]'), and falls through to stored odds when live is blank.
 //
-// This tier is WIRED BUT INERT: with KALSHI.workerUrl empty, fetchKalshiLive()
-// does nothing and getKalshiLive() returns null, so every matchup falls through
-// to the existing stored odds exactly as before — no behavior change today.
-// When a working proxy URL is filled in, live results populate KALSHI.cache and
-// matchups with live data are tagged with KALSHI.tag ('[K]') via source.
-//
-// The '[K]' tag is a private, temporary marker. To remove it everywhere later,
-// set KALSHI.tag = '' (one line). It only ever appears on genuinely live data.
+// The '[K]' tag is a private marker. Set KALSHI.tag='' to remove it everywhere.
 const KALSHI = {
   tag: '[K]',              // set to '' to remove the marker everywhere
-  workerUrl: '',           // e.g. 'https://wc-...workers.dev/?url='  (empty = inert)
+  base: 'https://api.elections.kalshi.com/trade-api/v2',
   series: 'KXWCADVANCE',
   cache: {},               // 'Home_Away' -> [homePct, awayPct]
-  // Canonical team name -> Kalshi 3-letter code (extend as matchups appear).
-  abbr: {
-    'USA':'usa','Belgium':'bel','Bosnia':'bih','Senegal':'sen','Spain':'esp',
-    'Austria':'aut','Australia':'aus','Egypt':'egy','Brazil':'bra','Norway':'nor',
-    'England':'eng','Mexico':'mex','Canada':'can','Morocco':'mar','Paraguay':'par',
-    'France':'fra','Argentina':'arg','Cabo Verde':'cpv','Colombia':'col','Ghana':'gha',
-    'Portugal':'prt','Croatia':'hrv','Switzerland':'sui','Algeria':'alg',
+  loaded: false,
+  // Kalshi 3-letter code -> canonical app team name (for parsing sub-titles).
+  codeToName: {
+    usa:'USA', bel:'Belgium', bih:'Bosnia', sen:'Senegal', esp:'Spain',
+    aut:'Austria', aus:'Australia', egy:'Egypt', bra:'Brazil', nor:'Norway',
+    eng:'England', mex:'Mexico', can:'Canada', mar:'Morocco', par:'Paraguay',
+    fra:'France', arg:'Argentina', cpv:'Cabo Verde', col:'Colombia', gha:'Ghana',
+    prt:'Portugal', hrv:'Croatia', sui:'Switzerland', alg:'Algeria',
   },
 };
 
-// Read live Kalshi probabilities for a matchup from cache. Returns [home%,away%]
-// (oriented to the requested home/away) or null when no live data is present.
+// Read cached live Kalshi probabilities for a matchup. Returns [home%,away%]
+// oriented to the requested home/away, or null when no live data is present.
 function getKalshiLive(home, away) {
   const k = home+'_'+away, r = away+'_'+home;
   if (KALSHI.cache[k]) return KALSHI.cache[k].slice();
@@ -1688,54 +1682,62 @@ function getKalshiLive(home, away) {
   return null;
 }
 
-// Build the Kalshi market ticker for a matchup, given a date code like 'jul06'.
-// Returns null if either team lacks a known abbreviation. (Home/away order in
-// the ticker follows Kalshi's own listing, so callers should try both.)
-function _kalshiTicker(a, b, dateCode) {
-  const ca = KALSHI.abbr[a], cb = KALSHI.abbr[b];
-  if (!ca || !cb || !dateCode) return null;
-  return `${KALSHI.series}-26${dateCode.toUpperCase()}${ca.toUpperCase()}${cb.toUpperCase()}`;
+// Given a market's yes price (0–1) and its sub-title (e.g. "USA advances"),
+// plus the two canonical team names in this matchup, store [home%,away%].
+function _kalshiStore(homeName, awayName, yesForName, yesPrice) {
+  let yesPct = Math.max(3, Math.min(97, Math.round(yesPrice * 100)));
+  const homePct = (yesForName === homeName) ? yesPct : (100 - yesPct);
+  KALSHI.cache[homeName+'_'+awayName] = [homePct, 100 - homePct];
 }
 
-// Fetch one Kalshi advance market through the proxy and store a normalized
-// [home%,away%] in KALSHI.cache. INERT while KALSHI.workerUrl is empty.
-// `home`/`away` are canonical names; `dateCode` like 'jul06'.
-async function fetchKalshiLive(home, away, dateCode) {
-  if (!KALSHI.workerUrl) return null;                 // dormant: no proxy set
-  const ticker = _kalshiTicker(home, away, dateCode)
-              || _kalshiTicker(away, home, dateCode);
-  if (!ticker) return null;
-  const target = `https://api.elections.kalshi.com/trade-api/v2/markets/${ticker}`;
+// Parse a Kalshi market object into the cache. Returns true if stored.
+function _kalshiParseMarket(m) {
+  if (!m || !m.ticker) return false;
+  // Ticker tail is two 3-letter codes, e.g. ...USABEL -> usa, bel.
+  const tail = String(m.ticker).split('-').pop().toLowerCase();  // e.g. 26jul06usabel
+  const codes = tail.slice(-6);                                  // usabel
+  const cA = codes.slice(0,3), cB = codes.slice(3,6);
+  const nameA = KALSHI.codeToName[cA], nameB = KALSHI.codeToName[cB];
+  if (!nameA || !nameB) return false;
+  // yes price: prefer mid of bid/ask, else last price. Blank/zero -> skip.
+  const yb = parseFloat(m.yes_bid_dollars), ya = parseFloat(m.yes_ask_dollars);
+  let yes = (Number.isFinite(yb) && Number.isFinite(ya) && (yb>0 || ya>0))
+            ? (yb + ya)/2 : parseFloat(m.last_price_dollars);
+  if (!Number.isFinite(yes) || yes <= 0) return false;
+  // Which team is the Yes side? sub-title says e.g. "USA advances".
+  const sub = (m.yes_sub_title || '').toLowerCase();
+  const yesForName = sub.includes(nameA.toLowerCase()) ? nameA
+                   : sub.includes(nameB.toLowerCase()) ? nameB
+                   : nameA;   // fall back to first code if sub-title unclear
+  _kalshiStore(nameA, nameB, yesForName, yes);
+  return true;
+}
+
+// Fetch the whole open KXWCADVANCE series directly from Kalshi (no proxy) and
+// populate KALSHI.cache. Any failure (network/CORS/parse) leaves the cache
+// empty, so blendedProbKO cleanly falls through to stored odds. Safe to call
+// on load; re-renders when done so live matchups pick up the '[K]' tag.
+async function fetchKalshiAll() {
+  const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=open&limit=200`;
   try {
-    const r = await fetch(KALSHI.workerUrl + encodeURIComponent(target));
-    if (!r.ok) return null;
+    const r = await fetch(url);
+    if (!r.ok) return;
     const j = await r.json();
-    const m = j && j.market;
-    if (!m) return null;
-    // Price fields are decimal dollars as strings. Prefer the mid of yes bid/ask,
-    // fall back to last price. Blank/zero -> treat as no data.
-    const yb = parseFloat(m.yes_bid_dollars), ya = parseFloat(m.yes_ask_dollars);
-    let yes = (Number.isFinite(yb) && Number.isFinite(ya) && (yb>0 || ya>0))
-              ? (yb + ya) / 2
-              : parseFloat(m.last_price_dollars);
-    if (!Number.isFinite(yes) || yes <= 0) return null;   // blank -> fall through
-    let yesPct = Math.max(3, Math.min(97, Math.round(yes * 100)));
-    // yes_sub_title tells us which team the Yes side is (e.g. "USA advances").
-    const sub = (m.yes_sub_title || '').toLowerCase();
-    const homeIsYes = sub.includes(home.toLowerCase());
-    const homePct = homeIsYes ? yesPct : (100 - yesPct);
-    KALSHI.cache[home+'_'+away] = [homePct, 100 - homePct];
-    return KALSHI.cache[home+'_'+away].slice();
+    const markets = (j && j.markets) || [];
+    let n = 0;
+    for (const m of markets) { if (_kalshiParseMarket(m)) n++; }
+    KALSHI.loaded = true;
+    if (n > 0 && typeof renderAll === 'function') renderAll();
   } catch (e) {
-    return null;   // any failure -> no live data -> clean fall-through
+    // Direct fetch failed (e.g. blocked). Leave cache empty -> stored odds used.
   }
 }
 
 function blendedProbKO(home, away) {
   const model = calcProbKO(home, away);
   // TIER 1 — live Kalshi market data, when present. Tagged '[K]' so it's
-  // distinguishable from stored odds. Inert until a proxy URL is configured;
-  // returns null here otherwise, falling through to the stored tiers below.
+  // distinguishable from stored odds. Fetched directly on load; if the fetch
+  // returned nothing for this matchup, live is null and we fall through below.
   const live = getKalshiLive(home, away);
   if (live) return { probs:live, source:'kalshi-live', tag:KALSHI.tag };
   // TIER 2 — stored PM/Kalshi head-to-head market odds (draw removed,
@@ -8438,6 +8440,11 @@ initState();
 initLang();
 // Auto-refresh on page load
 setTimeout(function(){ globalRefresh(); }, 2000);
+// Fetch live Kalshi KO odds directly on load (no proxy). Failures are silent
+// and simply leave stored odds in place. Re-renders when data lands.
+setTimeout(function(){ fetchKalshiAll(); }, 800);
+// Refresh Kalshi odds hourly while the app is open.
+setInterval(function(){ fetchKalshiAll(); }, 60*60*1000);
 // Auto-refresh every 24 hours while app is open
 setInterval(function(){ globalRefresh(); }, 24*60*60*1000);
 // Polymarket odds are hardcoded — no background fetch needed
