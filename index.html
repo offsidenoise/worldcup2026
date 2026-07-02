@@ -1726,6 +1726,8 @@ function _kalshiParseMarket(m) {
 // empty, so blendedProbKO cleanly falls through to stored odds. Safe to call
 // on load; re-renders when done so live matchups pick up the '[K]' tag.
 async function fetchKalshiAll() {
+  KALSHI.status = 'fetching…';
+  try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
   const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=open&limit=200`;
   try {
     const r = await fetch(url);
@@ -1752,12 +1754,23 @@ async function fetchKalshiAll() {
   }
   // Mirror the outcome to a global so it can be inspected without a console.
   try { window.__KALSHI_STATUS = KALSHI.status; } catch(_) {}
-  // TEMP DIAGNOSTIC (remove later): show Kalshi status in the header label so
-  // it's visible on mobile without a console. Prefixed 'K:' for clarity.
-  try {
-    const el = document.getElementById('last-updated-label');
-    if (el) el.textContent = 'K: ' + KALSHI.status;
-  } catch(_) {}
+  try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
+}
+
+// TEMP DIAGNOSTIC (remove later): a dedicated fixed banner at the bottom of the
+// screen that NOTHING else writes to, so the ESPN refresh can't clobber it.
+function _kalshiDiagPaint() {
+  let d = document.getElementById('kalshi-diag');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'kalshi-diag';
+    d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;'
+      + 'background:#111;color:#0f0;font:12px monospace;padding:6px 10px;'
+      + 'border-top:1px solid #0f0;text-align:center;word-break:break-all;';
+    document.body.appendChild(d);
+  }
+  d.textContent = 'KALSHI ▶ ' + (KALSHI.status || '(init)')
+    + (KALSHI.sampleTicker ? ' | ' + KALSHI.sampleTicker : '');
 }
 
 function blendedProbKO(home, away) {
