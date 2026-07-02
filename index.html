@@ -1729,16 +1729,35 @@ async function fetchKalshiAll() {
   const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=open&limit=200`;
   try {
     const r = await fetch(url);
-    if (!r.ok) return;
+    if (!r.ok) {
+      KALSHI.status = 'http-' + r.status;   // reached server but non-OK
+      console.log('[KALSHI]', KALSHI.status);
+      return;
+    }
     const j = await r.json();
     const markets = (j && j.markets) || [];
     let n = 0;
     for (const m of markets) { if (_kalshiParseMarket(m)) n++; }
     KALSHI.loaded = true;
+    KALSHI.status = `ok: ${markets.length} markets, ${n} parsed`;
+    KALSHI.sampleTicker = markets[0] ? (markets[0].event_ticker || markets[0].ticker) : '(none)';
+    console.log('[KALSHI]', KALSHI.status, '| sample:', KALSHI.sampleTicker);
     if (n > 0 && typeof renderAll === 'function') renderAll();
   } catch (e) {
-    // Direct fetch failed (e.g. blocked). Leave cache empty -> stored odds used.
+    // Direct fetch failed — almost always CORS (browser blocked cross-origin
+    // read). Cache stays empty -> stored odds used. This is the signal that a
+    // direct fetch does NOT work and a proxy would be required.
+    KALSHI.status = 'BLOCKED: ' + (e && e.message ? e.message : 'fetch failed');
+    console.log('[KALSHI]', KALSHI.status);
   }
+  // Mirror the outcome to a global so it can be inspected without a console.
+  try { window.__KALSHI_STATUS = KALSHI.status; } catch(_) {}
+  // TEMP DIAGNOSTIC (remove later): show Kalshi status in the header label so
+  // it's visible on mobile without a console. Prefixed 'K:' for clarity.
+  try {
+    const el = document.getElementById('last-updated-label');
+    if (el) el.textContent = 'K: ' + KALSHI.status;
+  } catch(_) {}
 }
 
 function blendedProbKO(home, away) {
