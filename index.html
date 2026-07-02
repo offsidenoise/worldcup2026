@@ -1649,10 +1649,97 @@ const POLY_OUTRIGHT = {
   'Saudi Arabia':0.2,'Ecuador':0.2,'Algeria':0.2,'Austria':0.2,
 };
 
+// ── KALSHI LIVE ODDS (dormant until a proxy/Worker URL is provided) ──────────
+// Kalshi's World Cup "advances" markets live under series KXWCADVANCE, with
+// per-matchup tickers of the form KXWCADVANCE-26<DDMON><TEAMS>, e.g.
+// KXWCADVANCE-26JUL06USABEL (schema confirmed from a real market response).
+// Each market resolves Yes if one specific team advances; price in dollars
+// (0.00–1.00). We read the yes price, x100 -> cents, and map to [home,away].
+//
+// This tier is WIRED BUT INERT: with KALSHI.workerUrl empty, fetchKalshiLive()
+// does nothing and getKalshiLive() returns null, so every matchup falls through
+// to the existing stored odds exactly as before — no behavior change today.
+// When a working proxy URL is filled in, live results populate KALSHI.cache and
+// matchups with live data are tagged with KALSHI.tag ('[K]') via source.
+//
+// The '[K]' tag is a private, temporary marker. To remove it everywhere later,
+// set KALSHI.tag = '' (one line). It only ever appears on genuinely live data.
+const KALSHI = {
+  tag: '[K]',              // set to '' to remove the marker everywhere
+  workerUrl: '',           // e.g. 'https://wc-...workers.dev/?url='  (empty = inert)
+  series: 'KXWCADVANCE',
+  cache: {},               // 'Home_Away' -> [homePct, awayPct]
+  // Canonical team name -> Kalshi 3-letter code (extend as matchups appear).
+  abbr: {
+    'USA':'usa','Belgium':'bel','Bosnia':'bih','Senegal':'sen','Spain':'esp',
+    'Austria':'aut','Australia':'aus','Egypt':'egy','Brazil':'bra','Norway':'nor',
+    'England':'eng','Mexico':'mex','Canada':'can','Morocco':'mar','Paraguay':'par',
+    'France':'fra','Argentina':'arg','Cabo Verde':'cpv','Colombia':'col','Ghana':'gha',
+    'Portugal':'prt','Croatia':'hrv','Switzerland':'sui','Algeria':'alg',
+  },
+};
+
+// Read live Kalshi probabilities for a matchup from cache. Returns [home%,away%]
+// (oriented to the requested home/away) or null when no live data is present.
+function getKalshiLive(home, away) {
+  const k = home+'_'+away, r = away+'_'+home;
+  if (KALSHI.cache[k]) return KALSHI.cache[k].slice();
+  if (KALSHI.cache[r]) { const v = KALSHI.cache[r]; return [v[1], v[0]]; }
+  return null;
+}
+
+// Build the Kalshi market ticker for a matchup, given a date code like 'jul06'.
+// Returns null if either team lacks a known abbreviation. (Home/away order in
+// the ticker follows Kalshi's own listing, so callers should try both.)
+function _kalshiTicker(a, b, dateCode) {
+  const ca = KALSHI.abbr[a], cb = KALSHI.abbr[b];
+  if (!ca || !cb || !dateCode) return null;
+  return `${KALSHI.series}-26${dateCode.toUpperCase()}${ca.toUpperCase()}${cb.toUpperCase()}`;
+}
+
+// Fetch one Kalshi advance market through the proxy and store a normalized
+// [home%,away%] in KALSHI.cache. INERT while KALSHI.workerUrl is empty.
+// `home`/`away` are canonical names; `dateCode` like 'jul06'.
+async function fetchKalshiLive(home, away, dateCode) {
+  if (!KALSHI.workerUrl) return null;                 // dormant: no proxy set
+  const ticker = _kalshiTicker(home, away, dateCode)
+              || _kalshiTicker(away, home, dateCode);
+  if (!ticker) return null;
+  const target = `https://api.elections.kalshi.com/trade-api/v2/markets/${ticker}`;
+  try {
+    const r = await fetch(KALSHI.workerUrl + encodeURIComponent(target));
+    if (!r.ok) return null;
+    const j = await r.json();
+    const m = j && j.market;
+    if (!m) return null;
+    // Price fields are decimal dollars as strings. Prefer the mid of yes bid/ask,
+    // fall back to last price. Blank/zero -> treat as no data.
+    const yb = parseFloat(m.yes_bid_dollars), ya = parseFloat(m.yes_ask_dollars);
+    let yes = (Number.isFinite(yb) && Number.isFinite(ya) && (yb>0 || ya>0))
+              ? (yb + ya) / 2
+              : parseFloat(m.last_price_dollars);
+    if (!Number.isFinite(yes) || yes <= 0) return null;   // blank -> fall through
+    let yesPct = Math.max(3, Math.min(97, Math.round(yes * 100)));
+    // yes_sub_title tells us which team the Yes side is (e.g. "USA advances").
+    const sub = (m.yes_sub_title || '').toLowerCase();
+    const homeIsYes = sub.includes(home.toLowerCase());
+    const homePct = homeIsYes ? yesPct : (100 - yesPct);
+    KALSHI.cache[home+'_'+away] = [homePct, 100 - homePct];
+    return KALSHI.cache[home+'_'+away].slice();
+  } catch (e) {
+    return null;   // any failure -> no live data -> clean fall-through
+  }
+}
+
 function blendedProbKO(home, away) {
   const model = calcProbKO(home, away);
-  // Direct PM/Kalshi head-to-head market takes precedence when available:
-  // use it as-is (draw already removed and renormalized), no model blend.
+  // TIER 1 — live Kalshi market data, when present. Tagged '[K]' so it's
+  // distinguishable from stored odds. Inert until a proxy URL is configured;
+  // returns null here otherwise, falling through to the stored tiers below.
+  const live = getKalshiLive(home, away);
+  if (live) return { probs:live, source:'kalshi-live', tag:KALSHI.tag };
+  // TIER 2 — stored PM/Kalshi head-to-head market odds (draw removed,
+  // renormalized, 50/50 blended across stored sources). No live label.
   const pk = getPolyKO(home, away);
   if(pk) return { probs:pk, source:'poly-ko' };
   const pHome = POLY_OUTRIGHT[home];
@@ -3824,8 +3911,19 @@ function renderPredKO(roundKey, container){
     const realM=state.knockout[mn]||{};
     const locked=realM.winner!=null;
 
+    // Resolve the odds source once so the meta line can label it. koInfo is
+    // null for locked/TBD cards (no odds there). '[K]' marks live Kalshi.
+    const koInfo = (!locked && home && away) ? blendedProbKO(home, away) : null;
+    const koSrcTop = koInfo ? koInfo.source : undefined;
+    let koTagHtml = '';
+    if (koSrcTop === 'kalshi-live') {
+      koTagHtml = KALSHI.tag ? ` · <span style="color:#16a34a;font-size:0.65rem;font-weight:700;">${KALSHI.tag}</span>` : '';
+    } else if (koSrcTop === 'blend') {
+      koTagHtml = ` · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>`;
+    }
+
     html+=`<div class="pred-match-card${tbd?' locked':''}${locked?' locked':''}">`;
-    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${!locked&&home&&away&&typeof koSrc!=='undefined'&&koSrc==='blend'?' · <span style="color:#7c3aed;font-size:0.65rem;font-weight:700;">PM</span>':''}</div>`;
+    html+=`<div class="pred-match-meta">${fix.label||'M'+mn}${fix.date?' · '+fix.date:''}${fix.venue?' · '+tVenue(fix.venue):''}${locked?' · 🔒 '+t('result_locked_text'):''}${koTagHtml}</div>`;
     html+=`<div class="pred-teams">
       <div class="pred-team home${pick==='home'?' pick-winner':''}">${hF} ${tTeam(home)||'TBD'}</div>
       <div class="pred-vs">VS</div>
@@ -3835,7 +3933,7 @@ function renderPredKO(roundKey, container){
     if(locked){
       html+=`<div class="result-locked"><span class="result-locked-icon">🔒</span> ${t('pred_advanced_lbl')} <strong>${tTeam(realM.winner)}</strong></div>`;
     } else if(home&&away){
-      const {probs:[pA,pB],source:koSrc}=blendedProbKO(home,away);
+      const [pA,pB] = koInfo.probs;   // reuse the source resolved above
       html+=`<div class="prob-bar">
   <div class="prob-w1" style="width:${Math.round(pA)}%"><span class="prob-lbl">${Math.round(pA)}%</span></div>
   <div class="prob-w2" style="width:${Math.round(pB)}%"><span class="prob-lbl">${Math.round(pB)}%</span></div>
