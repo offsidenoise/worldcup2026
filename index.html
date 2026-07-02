@@ -1515,17 +1515,22 @@ const POLY_ODDS = {
 // team values to 100 so the PM market is used directly (no model blend) for
 // any R32 matchup present here. Keyed Home_Away with reversed-key fallback.
 // 2-way Kalshi markets are stored as-is with pDraw=0 (normalization is a no-op).
+// Raw [pWin, pDraw, pLose] cents from Polymarket (3-way) / Kalshi (2-way).
+// getPolyKO drops the draw and renormalizes the two team values to 100.
+// Keys are Home_Away using the first-listed team as home; canonical team names.
 const POLY_KO = {
-  'USA_Bosnia':                [72, 19, 10],   // -> 88 / 12
+  'England_Mexico':            [51,  0, 49],   // Kalshi advances, 2-way as-is -> 51 / 49
+  'Canada_Morocco':            [19, 28, 54],   // -> 26 / 74
+  'Paraguay_France':           [ 5, 13, 84],   // -> 6 / 94
+  'Brazil_Norway':             [52, 27, 23],   // -> 69 / 31
+  'Argentina_Cabo Verde':      [85, 12,  4],   // -> 96 / 4  (3.9c -> 4)
+  'Colombia_Ghana':            [65, 25, 12],   // -> 84 / 16
+  'Portugal_Croatia':          [55, 28, 19],   // -> 74 / 26
+  'Switzerland_Algeria':       [48, 30, 23],   // -> 68 / 32
   'Australia_Egypt':           [29, 34, 39],   // -> 43 / 57
-  'Argentina_Cabo Verde':      [87, 11, 4],    // -> 96 / 4
-  'Netherlands_Morocco':       [46, 31, 25],   // -> 65 / 35
-  'Ivory Coast_Norway':        [26, 28, 48],   // -> 35 / 65
-  'France_Sweden':             [77, 17, 9],     // -> 90 / 10
-  'South Africa_Canada':       [17, 27, 58],   // -> 23 / 77
-  'Brazil_Japan':              [58, 24, 19],   // -> 75 / 25
-  'Germany_Paraguay':          [72, 19, 10],   // -> 88 / 12
-  'Mexico_Ecuador':            [61,  0, 39],   // Kalshi advances, 2-way as-is
+  'Belgium_Senegal':           [49, 29, 24],   // -> 67 / 33
+  'USA_Bosnia':                [72, 20, 11],   // -> 87 / 13
+  'Spain_Austria':             [74, 18,  9],   // -> 89 / 11
 };
 
 // Return the PM head-to-head probabilities for a KO matchup with the draw
@@ -5798,6 +5803,34 @@ function namesMatch(a, b) {
   const na=norm(a), nb=norm(b);
   return na===nb||na.includes(nb)||nb.includes(na);
 }
+// ── ESPN fetch via proxy cascade ──────────────────────────────────────────
+// ESPN's API sends no CORS headers, so a browser on GitHub Pages can't read it
+// directly. We route through public CORS proxies, trying each in turn until one
+// works. corsproxy.io was removed from the front of the chain because it now
+// returns 403 for ESPN's domain outright (blocked), which used to guarantee a
+// wasted round-trip. Each proxy has its own URL shape:
+//   - allorigins:  ?url= + encoded target
+//   - thingproxy:  /fetch/ + raw target (NOT encoded)
+//   - corsproxy.io: ?url= + encoded  (kept last as a long shot if they unblock)
+// Order = try direct first (works if ESPN ever adds CORS / for cached edges),
+// then the proxies most likely to succeed.
+const ESPN_PROXIES = [
+  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://thingproxy.freeboard.io/fetch/' + u,
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+];
+async function espnFetchCascade(url){
+  // Direct first — cheap, and future-proof if ESPN ever serves CORS.
+  try { const r = await fetch(url); if (r.ok) return r; } catch(e){}
+  for (const build of ESPN_PROXIES){
+    try { const r = await fetch(build(url)); if (r.ok) return r; } catch(e){}
+  }
+  // Nothing worked — return a synthetic failed Response so callers that check
+  // r.ok fall through gracefully instead of throwing.
+  return new Response(null, { status: 502, statusText: 'All ESPN proxies failed' });
+}
+
+
 function normalizeESPNTeam(name) {
   const MAP = {
     'mexico':'Mexico','méxico':'Mexico',
@@ -6347,11 +6380,7 @@ async function globalRefresh(){
   const label=document.getElementById('last-updated-label');
   btn.classList.add('spinning'); btn.disabled=true; label.textContent=t('refreshing');
   const BASE='https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
-  const PROXY='https://corsproxy.io/?url=';
-  async function espnFetch(url){
-    try{const r=await fetch(url);if(r.ok)return r;}catch(e){}
-    return fetch(PROXY+encodeURIComponent(url));
-  }
+  const espnFetch = espnFetchCascade;
   try{
     const dateRanges=['20260611-20260627','20260628-20260719'];
     const allEvents=[];
@@ -7315,11 +7344,7 @@ async function _liveFetchAll(espnFetch) {
 function _liveStartPoll() {
   if (_livePollTimer) return;
   const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
-  const PROXY = 'https://corsproxy.io/?url=';
-  async function espnFetch(url) {
-    try { const r = await fetch(url); if (r.ok) return r; } catch(e) {}
-    return fetch(PROXY + encodeURIComponent(url));
-  }
+  const espnFetch = espnFetchCascade;
   async function poll() {
     if (_isRefreshing) return;
     _isRefreshing = true;
@@ -8005,6 +8030,13 @@ function pmOpen(playerJson) {
 
   // Current match stats from live event
   const ev = _lmCurrentEvent ? _liveEvents[_lmCurrentEvent] : null;
+  // A match is only truly in-progress when ESPN reports state==='in'. At full
+  // time the event stays in _liveEvents as state==='post', and by then the
+  // finished match has already been folded into statsData (see globalRefresh /
+  // the evState==='post' write-back). So we must only combine live goals into
+  // the tournament total while state==='in' — otherwise we double-count a
+  // finished match (e.g. Kane 5 true -> 7 shown).
+  const isLive = !!(ev && ev.state === 'in');
   let matchGoals = 0, matchYellows = 0, matchReds = 0, matchAssists = 0, hasAssists = false;
   if (ev) {
     const pid = espnId || name;
@@ -8013,15 +8045,13 @@ function pmOpen(playerJson) {
     matchReds    = ev.reds[pid] || ev.reds[name] || 0;
   }
 
-  // Tournament totals are aggregated from COMPLETED matches only (see the
-  // globalRefresh rebuild), so an in-progress match's goals/cards are not yet
-  // in statsData. While this match is live, fold them into the tournament
-  // total so the headline figure reflects what's happened so far. Once the
-  // match completes and stats refresh, tGoals includes it and `ev` is gone,
-  // so there is no double-count.
-  const tGoalsTotal   = tGoals   + matchGoals;
-  const tYellowsTotal = tYellows + matchYellows;
-  const tRedsTotal    = tReds    + matchReds;
+  // Fold live-match goals/cards into the tournament headline ONLY while the
+  // match is in progress. Once it's final, statsData already includes them, so
+  // we add nothing. "This Match" below still shows the per-match figures either
+  // way, so a finished match remains informative without inflating the total.
+  const tGoalsTotal   = tGoals   + (isLive ? matchGoals   : 0);
+  const tYellowsTotal = tYellows + (isLive ? matchYellows : 0);
+  const tRedsTotal    = tReds    + (isLive ? matchReds    : 0);
 
   const es = (LANG === 'es');
   const L = {
