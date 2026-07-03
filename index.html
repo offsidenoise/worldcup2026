@@ -881,6 +881,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
 .lm-score-line { font-family:'Bebas Neue',sans-serif; font-size:1.3rem;
   display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .lm-score-num { font-size:1.6rem; color:var(--accent); }
+.lm-pen { font-size:0.9rem; color:var(--muted); font-weight:600; }
 .lm-clock-badge { font-size:0.75rem; color:#e63946; font-weight:700;
   display:flex; align-items:center; gap:3px; }
 .lm-ht-badge { font-size:0.75rem; background:#555; color:#fff;
@@ -3195,6 +3196,8 @@ function ovGetAllFixtures() {
       fixtures.push({
         date: fixtureDate, kickoffDt, venue: fix.venue || '',
         home: m.home, away: m.away, score, grp: 'GRP ' + g,
+        homePen: (m.homePen != null ? m.homePen : null),
+        awayPen: (m.awayPen != null ? m.awayPen : null),
         homeFlag: FLAGS[m.home] || '', awayFlag: FLAGS[m.away] || '', isKO: false
       });
     });
@@ -6619,6 +6622,9 @@ async function globalRefresh(){
             if(direct||reversed){
               m.homeScore = direct ? homeScore : awayScore;
               m.awayScore = direct ? awayScore : homeScore;
+              // Penalty-shootout scores, aligned to the stored home/away.
+              m.homePen = direct ? homePen : awayPen;
+              m.awayPen = direct ? awayPen : homePen;
               // Card totals from boxscore stats — fetched in summary pass below
               m._espnId=event.id;
               updated=true;break;
@@ -7641,7 +7647,16 @@ function ovMatchRow(m, withButtons) {
     mid = `<span class="ov-inline-score">${liveEv.homeScore}${hP} – ${liveEv.awayScore}${aP}</span>`;
     right = `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else if (m.score) {
-    mid = `<span class="ov-inline-score">${m.score.replace(/\s*[:\-–]\s*/,' – ')}</span>`;
+    // Aged finished match (no longer in the live feed): score comes from the
+    // stored string. Append penalty scores in parens when a shootout occurred.
+    const hasPen = m.homePen != null && m.awayPen != null;
+    if (hasPen) {
+      const parts = m.score.split(/[–:-]/);
+      const hs = (parts[0]||'').trim(), as = (parts[1]||'').trim();
+      mid = `<span class="ov-inline-score">${hs} <span class="ov-pen">(${m.homePen})</span> – ${as} <span class="ov-pen">(${m.awayPen})</span></span>`;
+    } else {
+      mid = `<span class="ov-inline-score">${m.score.replace(/\s*[:\-–]\s*/,' – ')}</span>`;
+    }
     right = `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else {
     right = `<div class="ov-match-right"><div class="ov-match-time">${timeStr}</div><div class="ov-match-grp">${m.grp||''}</div></div>`;
@@ -8072,8 +8087,11 @@ function lmRender(eventId) {
     clockHtml = `<span style="font-size:0.75rem;color:var(--muted)">FT</span>`;
   }
 
+  const _hasPen = ev.homePen != null && ev.awayPen != null;
+  const _hPen = _hasPen ? ` <span class="lm-pen">(${ev.homePen})</span>` : '';
+  const _aPen = _hasPen ? ` <span class="lm-pen">(${ev.awayPen})</span>` : '';
   document.getElementById('lm-score-line').innerHTML =
-    `${ev.homeFlag} ${tTeam(ev.home)} <span class="lm-score-num">${ev.homeScore}–${ev.awayScore}</span> ${tTeam(ev.away)} ${ev.awayFlag} ${clockHtml}`;
+    `${ev.homeFlag} ${tTeam(ev.home)} <span class="lm-score-num">${ev.homeScore}${_hPen}–${ev.awayScore}${_aPen}</span> ${tTeam(ev.away)} ${ev.awayFlag} ${clockHtml}`;
 
   document.getElementById('lm-status-line').textContent =
     ev.state === 'in' ? (ev.period === 1 ? (LANG==='es'?'1ª Parte':'1st Half') : (LANG==='es'?'2ª Parte':'2nd Half')) : '';
