@@ -632,6 +632,7 @@ body.light-mode .stats-tbl th { background:var(--bg); }
   color:var(--accent); margin:0 4px; white-space:nowrap;
 }
 .ov-inline-score-live { color:#e63946; }
+.ov-pen { font-size:0.78em; color:var(--muted); font-weight:600; }
 .ov-no-games {
   background:var(--card); border:1px solid var(--border); border-radius:10px;
   padding:12px 14px; margin-bottom:14px;
@@ -7466,6 +7467,21 @@ async function _liveFetchAll(espnFetch) {
       homeFormation, awayFormation,
       homeScore: parseInt(homeComp.score) || 0,
       awayScore: parseInt(awayComp.score) || 0,
+      // Penalty-shootout scores: only meaningful when the tie is level after
+      // regulation and ESPN reports shootoutScore. null otherwise. Same
+      // defensive rule as the scoreboard parse used for the bracket.
+      homePen: (function(){
+        const h=parseInt(homeComp.shootoutScore), a=parseInt(awayComp.shootoutScore);
+        const lvl=(parseInt(homeComp.score)||0)===(parseInt(awayComp.score)||0);
+        const has=lvl && (Number.isFinite(h)||Number.isFinite(a)) && ((h>0)||(a>0));
+        return has ? (Number.isFinite(h)?h:0) : null;
+      })(),
+      awayPen: (function(){
+        const h=parseInt(homeComp.shootoutScore), a=parseInt(awayComp.shootoutScore);
+        const lvl=(parseInt(homeComp.score)||0)===(parseInt(awayComp.score)||0);
+        const has=lvl && (Number.isFinite(h)||Number.isFinite(a)) && ((h>0)||(a>0));
+        return has ? (Number.isFinite(a)?a:0) : null;
+      })(),
       homeFlag: FLAGS[homeName] || '',
       awayFlag: FLAGS[awayName] || '',
       state: evState,
@@ -7617,7 +7633,12 @@ function ovMatchRow(m, withButtons) {
       <div class="ov-live-clock"><span class="ov-live-dot"></span>${ht ? 'HT' : liveEv.clock}</div>
     </div>`;
   } else if (isPost) {
-    mid = `<span class="ov-inline-score">${liveEv.homeScore} – ${liveEv.awayScore}</span>`;
+    // Finished: show regulation score, plus penalty scores in parens when the
+    // tie went to a shootout, e.g. "1 (2) – 1 (4)".
+    const hasPen = liveEv.homePen != null && liveEv.awayPen != null;
+    const hP = hasPen ? ` <span class="ov-pen">(${liveEv.homePen})</span>` : '';
+    const aP = hasPen ? ` <span class="ov-pen">(${liveEv.awayPen})</span>` : '';
+    mid = `<span class="ov-inline-score">${liveEv.homeScore}${hP} – ${liveEv.awayScore}${aP}</span>`;
     right = `<div class="ov-match-right"><div class="ov-match-grp">${m.grp||''}</div></div>`;
   } else if (m.score) {
     mid = `<span class="ov-inline-score">${m.score.replace(/\s*[:\-–]\s*/,' – ')}</span>`;
