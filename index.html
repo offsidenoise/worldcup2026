@@ -6009,6 +6009,41 @@ async function espnFetchCascade(url){
 }
 
 
+// Extract a penalty-shootout score from an ESPN competitor object. ESPN's exact
+// field name for shootout scores is not reliably documented and may vary, so
+// check the plausible locations rather than betting on one. Returns an integer
+// or NaN. Widened net: top-level shootoutScore, penaltyScore, penScore, and a
+// nested `shootout`/`penalties` object.
+function _espnShootout(comp) {
+  if (!comp) return NaN;
+  const cands = [
+    comp.shootoutScore,
+    comp.penaltyScore,
+    comp.penScore,
+    comp.penalties,
+    comp.shootout,
+    comp.shootout && comp.shootout.score,
+    comp.penalties && comp.penalties.score,
+  ];
+  for (const c of cands) {
+    const n = parseInt(c);
+    if (Number.isFinite(n)) return n;
+  }
+  // Last resort: scan the competitor's own keys for anything that looks like a
+  // shootout/penalty score we didn't anticipate. Guards against ESPN naming we
+  // haven't seen. Only accepts a small integer (0–30) to avoid grabbing IDs.
+  try {
+    for (const k of Object.keys(comp)) {
+      if (/shoot|penal/i.test(k)) {
+        const v = comp[k];
+        const n = parseInt(typeof v === 'object' && v ? (v.score ?? v.value ?? v.displayValue) : v);
+        if (Number.isFinite(n) && n >= 0 && n <= 30) return n;
+      }
+    }
+  } catch (e) {}
+  return NaN;
+}
+
 function normalizeESPNTeam(name) {
   const MAP = {
     'mexico':'Mexico','méxico':'Mexico',
@@ -6605,8 +6640,8 @@ async function globalRefresh(){
         // exposes these as competitor.shootoutScore on the scoreboard feed;
         // parse defensively and only treat as a real shootout when both regular
         // scores are level and at least one shootout value is present.
-        const homePenRaw=parseInt(homeComp.shootoutScore);
-        const awayPenRaw=parseInt(awayComp.shootoutScore);
+        const homePenRaw=_espnShootout(homeComp);
+        const awayPenRaw=_espnShootout(awayComp);
         const hasShootout=(homeScore===awayScore)&&(Number.isFinite(homePenRaw)||Number.isFinite(awayPenRaw))&&(homePenRaw>0||awayPenRaw>0);
         const homePen=hasShootout?(Number.isFinite(homePenRaw)?homePenRaw:0):null;
         const awayPen=hasShootout?(Number.isFinite(awayPenRaw)?awayPenRaw:0):null;
@@ -7477,13 +7512,13 @@ async function _liveFetchAll(espnFetch) {
       // regulation and ESPN reports shootoutScore. null otherwise. Same
       // defensive rule as the scoreboard parse used for the bracket.
       homePen: (function(){
-        const h=parseInt(homeComp.shootoutScore), a=parseInt(awayComp.shootoutScore);
+        const h=_espnShootout(homeComp), a=_espnShootout(awayComp);
         const lvl=(parseInt(homeComp.score)||0)===(parseInt(awayComp.score)||0);
         const has=lvl && (Number.isFinite(h)||Number.isFinite(a)) && ((h>0)||(a>0));
         return has ? (Number.isFinite(h)?h:0) : null;
       })(),
       awayPen: (function(){
-        const h=parseInt(homeComp.shootoutScore), a=parseInt(awayComp.shootoutScore);
+        const h=_espnShootout(homeComp), a=_espnShootout(awayComp);
         const lvl=(parseInt(homeComp.score)||0)===(parseInt(awayComp.score)||0);
         const has=lvl && (Number.isFinite(h)||Number.isFinite(a)) && ((h>0)||(a>0));
         return has ? (Number.isFinite(a)?a:0) : null;
