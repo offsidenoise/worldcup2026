@@ -1,8 +1,85 @@
 {
-  "updated": "2026-07-02T20:00:00Z",
+  "updated": "2026-07-03T01:18:13.968Z",
   "odds": {
-    "USA_Belgium": [54, 46],
-    "Portugal_Croatia": [72, 28],
-    "Brazil_Norway": [65, 35]
+    "USA_Belgium": [
+      52,
+      48
+    ],
+    "Mexico_England": [
+      48,
+      52
+    ],
+    "Paraguay_France": [
+      9,
+      91
+    ],
+    "Brazil_Norway": [
+      66,
+      34
+    ],
+    "Canada_Morocco": [
+      28,
+      72
+    ],
+    "Switzerland_Algeria": [
+      65,
+      35
+    ],
+    "Spain_Austria": [
+      50,
+      50
+    ],
+    "Colombia_Ghana": [
+      80,
+      20
+    ],
+    "Portugal_Croatia": [
+      50,
+      50
+    ],
+    "Belgium_Senegal": [
+      50,
+      50
+    ],
+    "Mexico_Ecuador": [
+      50,
+      50
+    ],
+    "Australia_Egypt": [
+      44,
+      56
+    ],
+    "Argentina_Cabo Verde": [
+      91,
+      9
+    ],
+    "France_Sweden": [
+      50,
+      50
+    ],
+    "Germany_Paraguay": [
+      50,
+      50
+    ],
+    "Ivory Coast_Norway": [
+      50,
+      50
+    ],
+    "USA_Bosnia": [
+      50,
+      50
+    ],
+    "Netherlands_Morocco": [
+      50,
+      50
+    ],
+    "Brazil_Japan": [
+      50,
+      50
+    ],
+    "South Africa_Canada": [
+      50,
+      50
+    ]
   }
 }
