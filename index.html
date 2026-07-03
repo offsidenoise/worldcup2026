@@ -1728,40 +1728,33 @@ function _kalshiParseMarket(m) {
 async function fetchKalshiAll() {
   KALSHI.status = 'fetching…';
   try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
-  // The series query with status=open returned 0. Try several forms and use the
-  // first that yields markets. Diagnostic reports which form worked + a sample.
-  const forms = [
-    ['series-open',  `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=open&limit=200`],
-    ['series-any',   `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&limit=200`],
-    ['series-active',`${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=active&limit=200`],
-    ['event-usabel', `${KALSHI.base}/markets?event_ticker=KXWCADVANCE-26JUL06USABEL`],
-  ];
+  // series query without a status filter returns all WC advance markets.
+  const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&limit=200`;
   try {
-    let j = null, usedForm = '', markets = [];
-    for (const [name, url] of forms) {
-      const r = await espnFetchCascade(url);
-      if (!r.ok) { KALSHI.status = name+':proxy-'+r.status; continue; }
-      let parsed;
-      try { parsed = await r.json(); }
-      catch (pe) { try { parsed = JSON.parse(await r.text()); } catch(_) { continue; } }
-      if (parsed && typeof parsed.contents === 'string') {
-        try { parsed = JSON.parse(parsed.contents); } catch(_) {}
+    const r = await espnFetchCascade(url);
+    if (!r.ok) { KALSHI.status = 'proxy-'+r.status; try{_kalshiDiagPaint();}catch(_){}  return; }
+    let j;
+    try { j = await r.json(); }
+    catch (pe) { try { j = JSON.parse(await r.text()); } catch(_) { KALSHI.status='parse-fail'; try{_kalshiDiagPaint();}catch(__){}; return; } }
+    if (j && typeof j.contents === 'string') { try { j = JSON.parse(j.contents); } catch(_) {} }
+    const markets = (j && j.markets) || [];
+    let n = 0; const unparsed = [];
+    for (const m of markets) {
+      if (_kalshiParseMarket(m)) n++;
+      else {
+        // Only flag markets that LOOK like a matchup market (have the 6-letter
+        // code) but didn't map — those indicate a missing team code.
+        const src = String(m.event_ticker || m.ticker || '');
+        if (/26[a-z]{3}\d{2}[a-z]{6}/i.test(src)) unparsed.push(src.split('-').slice(-1)[0]);
       }
-      const ms = (parsed && parsed.markets) || [];
-      if (ms.length > 0) { j = parsed; usedForm = name; markets = ms; break; }
-      // remember the last successful-but-empty form for reporting
-      usedForm = name + '(0)';
     }
-    let n = 0;
-    for (const m of markets) { if (_kalshiParseMarket(m)) n++; }
     KALSHI.loaded = true;
-    KALSHI.status = `${usedForm}: ${markets.length} mkts, ${n} parsed`;
-    KALSHI.sampleTicker = markets[0] ? (markets[0].event_ticker || markets[0].ticker) : '(none)';
-    if (n > 0 && typeof renderAll === 'function') renderAll();
+    KALSHI.status = `${markets.length} mkts, ${n} parsed`;
+    KALSHI.unparsed = unparsed.slice(0, 12).join(',') || '(none)';
+    if (typeof renderAll === 'function') renderAll();
   } catch (e) {
     KALSHI.status = 'BLOCKED: ' + (e && e.message ? e.message : 'fetch failed');
   }
-  // Mirror the outcome to a global so it can be inspected without a console.
   try { window.__KALSHI_STATUS = KALSHI.status; } catch(_) {}
   try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
 }
@@ -1779,7 +1772,7 @@ function _kalshiDiagPaint() {
     document.body.appendChild(d);
   }
   d.textContent = 'KALSHI ▶ ' + (KALSHI.status || '(init)')
-    + (KALSHI.sampleTicker ? ' | ' + KALSHI.sampleTicker : '');
+    + (KALSHI.unparsed ? ' | unmatched: ' + KALSHI.unparsed : '');
 }
 
 function blendedProbKO(home, away) {
