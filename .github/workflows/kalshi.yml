@@ -1,0 +1,40 @@
+name: Update Kalshi odds
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kalshi-odds
+  cancel-in-progress: true
+
+jobs:
+  update-odds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch Kalshi odds
+        run: node fetch-kalshi.js
+
+      - name: Commit updated odds (only if changed)
+        run: |
+          if git diff --quiet -- kalshi-odds.json; then
+            echo "No change in kalshi-odds.json — nothing to commit."
+          else
+            git config user.name  "kalshi-bot"
+            git config user.email "kalshi-bot@users.noreply.github.com"
+            git add kalshi-odds.json
+            git commit -m "Update Kalshi odds"
+            git push
+          fi
