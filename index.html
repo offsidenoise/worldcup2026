@@ -1669,7 +1669,8 @@ const KALSHI = {
     aut:'Austria', aus:'Australia', egy:'Egypt', bra:'Brazil', nor:'Norway',
     eng:'England', mex:'Mexico', can:'Canada', mar:'Morocco', par:'Paraguay',
     fra:'France', arg:'Argentina', cpv:'Cabo Verde', col:'Colombia', gha:'Ghana',
-    prt:'Portugal', hrv:'Croatia', sui:'Switzerland', alg:'Algeria',
+    prt:'Portugal', por:'Portugal', hrv:'Croatia', cro:'Croatia',
+    sui:'Switzerland', alg:'Algeria',
   },
 };
 
@@ -1725,54 +1726,38 @@ function _kalshiParseMarket(m) {
 // populate KALSHI.cache. Any failure (network/CORS/parse) leaves the cache
 // empty, so blendedProbKO cleanly falls through to stored odds. Safe to call
 // on load; re-renders when done so live matchups pick up the '[K]' tag.
+// Load pre-computed Kalshi odds from a same-origin file that a scheduled
+// GitHub Action refreshes hourly (fetch-kalshi.js writes kalshi-odds.json).
+// No proxy, no CORS, no flakiness — the file lives in this repo. The file is
+// already in {"Home_Away":[homePct,awayPct]} form, so we just load it into the
+// cache. Cache-bust by the hour so a fresh file is picked up without a hard
+// refresh, but the browser can still cache within the hour.
 async function fetchKalshiAll() {
-  KALSHI.status = 'fetching…';
-  try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
-  // series query without a status filter returns all WC advance markets.
-  const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&limit=200`;
   try {
-    const r = await espnFetchCascade(url);
-    if (!r.ok) { KALSHI.status = 'proxy-'+r.status; try{_kalshiDiagPaint();}catch(_){}  return; }
-    let j;
-    try { j = await r.json(); }
-    catch (pe) { try { j = JSON.parse(await r.text()); } catch(_) { KALSHI.status='parse-fail'; try{_kalshiDiagPaint();}catch(__){}; return; } }
-    if (j && typeof j.contents === 'string') { try { j = JSON.parse(j.contents); } catch(_) {} }
-    const markets = (j && j.markets) || [];
-    let n = 0; const unparsed = [];
-    for (const m of markets) {
-      if (_kalshiParseMarket(m)) n++;
-      else {
-        // Only flag markets that LOOK like a matchup market (have the 6-letter
-        // code) but didn't map — those indicate a missing team code.
-        const src = String(m.event_ticker || m.ticker || '');
-        if (/26[a-z]{3}\d{2}[a-z]{6}/i.test(src)) unparsed.push(src.split('-').slice(-1)[0]);
+    const bust = Math.floor(Date.now() / 3600000);   // changes each hour
+    const r = await fetch('kalshi-odds.json?v=' + bust);
+    if (!r.ok) { KALSHI.status = 'file-' + r.status; return; }
+    const data = await r.json();
+    // Accept either { odds:{...}, updated:"..." } or a bare {Home_Away:[...]}.
+    const odds = (data && data.odds) ? data.odds : data;
+    let n = 0;
+    for (const key in odds) {
+      const v = odds[key];
+      if (Array.isArray(v) && v.length === 2 &&
+          Number.isFinite(v[0]) && Number.isFinite(v[1])) {
+        KALSHI.cache[key] = [v[0], v[1]];
+        n++;
       }
     }
     KALSHI.loaded = true;
-    KALSHI.status = `${markets.length} mkts, ${n} parsed`;
-    KALSHI.unparsed = unparsed.slice(0, 12).join(',') || '(none)';
-    if (typeof renderAll === 'function') renderAll();
+    KALSHI.updated = (data && data.updated) ? data.updated : '';
+    KALSHI.status = n + ' matchups loaded';
+    if (n > 0 && typeof renderAll === 'function') renderAll();
   } catch (e) {
-    KALSHI.status = 'BLOCKED: ' + (e && e.message ? e.message : 'fetch failed');
+    // File missing or unparseable -> cache stays empty -> stored odds used.
+    KALSHI.status = 'load-failed';
   }
   try { window.__KALSHI_STATUS = KALSHI.status; } catch(_) {}
-  try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
-}
-
-// TEMP DIAGNOSTIC (remove later): a dedicated fixed banner at the bottom of the
-// screen that NOTHING else writes to, so the ESPN refresh can't clobber it.
-function _kalshiDiagPaint() {
-  let d = document.getElementById('kalshi-diag');
-  if (!d) {
-    d = document.createElement('div');
-    d.id = 'kalshi-diag';
-    d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;'
-      + 'background:#111;color:#0f0;font:12px monospace;padding:6px 10px;'
-      + 'border-top:1px solid #0f0;text-align:center;word-break:break-all;';
-    document.body.appendChild(d);
-  }
-  d.textContent = 'KALSHI ▶ ' + (KALSHI.status || '(init)')
-    + (KALSHI.unparsed ? ' | unmatched: ' + KALSHI.unparsed : '');
 }
 
 function blendedProbKO(home, away) {
@@ -8482,11 +8467,11 @@ initState();
 initLang();
 // Auto-refresh on page load
 setTimeout(function(){ globalRefresh(); }, 2000);
-// Fetch live Kalshi KO odds directly on load (no proxy). Failures are silent
-// and simply leave stored odds in place. Re-renders when data lands.
-setTimeout(function(){ fetchKalshiAll(); }, 800);
-// Refresh Kalshi odds hourly while the app is open.
-setInterval(function(){ fetchKalshiAll(); }, 60*60*1000);
+// Load live Kalshi odds from the same-origin kalshi-odds.json (refreshed hourly
+// by a GitHub Action). Cheap same-origin read; failures leave stored odds in
+// place. Re-check every 30 min while the app is open.
+setTimeout(function(){ fetchKalshiAll(); }, 500);
+setInterval(function(){ fetchKalshiAll(); }, 30*60*1000);
 // Auto-refresh every 24 hours while app is open
 setInterval(function(){ globalRefresh(); }, 24*60*60*1000);
 // Polymarket odds are hardcoded — no background fetch needed
