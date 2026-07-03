@@ -1,6 +1,10 @@
 {
-  "updated": "2026-07-03T01:18:13.968Z",
+  "updated": "2026-07-03T04:43:10.115Z",
   "odds": {
+    "Portugal_Spain": [
+      33,
+      67
+    ],
     "USA_Belgium": [
       52,
       48
@@ -22,8 +26,8 @@
       72
     ],
     "Switzerland_Algeria": [
-      65,
-      35
+      97,
+      3
     ],
     "Spain_Austria": [
       50,
@@ -46,12 +50,12 @@
       50
     ],
     "Australia_Egypt": [
-      44,
-      56
+      43,
+      57
     ],
     "Argentina_Cabo Verde": [
-      91,
-      9
+      93,
+      7
     ],
     "France_Sweden": [
       50,
