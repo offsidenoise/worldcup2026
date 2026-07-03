@@ -1730,13 +1730,27 @@ async function fetchKalshiAll() {
   try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
   const url = `${KALSHI.base}/markets?series_ticker=${KALSHI.series}&status=open&limit=200`;
   try {
-    const r = await fetch(url);
+    // Direct Kalshi is CORS-blocked, so route through the same proxy cascade
+    // ESPN uses (direct → allorigins → thingproxy → corsproxy). Returns a
+    // synthetic 502 Response on total failure rather than throwing.
+    const r = await espnFetchCascade(url);
     if (!r.ok) {
-      KALSHI.status = 'http-' + r.status;   // reached server but non-OK
-      console.log('[KALSHI]', KALSHI.status);
+      KALSHI.status = 'proxy-fail-' + r.status;
+      try { if (typeof _kalshiDiagPaint === 'function') _kalshiDiagPaint(); } catch(_){}
       return;
     }
-    const j = await r.json();
+    // Parse JSON defensively: some proxies return the body as text or wrap it.
+    let j;
+    try {
+      j = await r.json();
+    } catch (pe) {
+      try { j = JSON.parse(await r.text()); }
+      catch (pe2) { KALSHI.status = 'parse-fail'; return; }
+    }
+    // Some proxies wrap the payload under a "contents" string (allorigins /get).
+    if (j && typeof j.contents === 'string') {
+      try { j = JSON.parse(j.contents); } catch(_) {}
+    }
     const markets = (j && j.markets) || [];
     let n = 0;
     for (const m of markets) { if (_kalshiParseMarket(m)) n++; }
@@ -1746,9 +1760,7 @@ async function fetchKalshiAll() {
     console.log('[KALSHI]', KALSHI.status, '| sample:', KALSHI.sampleTicker);
     if (n > 0 && typeof renderAll === 'function') renderAll();
   } catch (e) {
-    // Direct fetch failed — almost always CORS (browser blocked cross-origin
-    // read). Cache stays empty -> stored odds used. This is the signal that a
-    // direct fetch does NOT work and a proxy would be required.
+    // Total failure through every proxy. Cache stays empty -> stored odds used.
     KALSHI.status = 'BLOCKED: ' + (e && e.message ? e.message : 'fetch failed');
     console.log('[KALSHI]', KALSHI.status);
   }
