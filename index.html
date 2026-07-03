@@ -1734,7 +1734,7 @@ function _kalshiParseMarket(m) {
 // refresh, but the browser can still cache within the hour.
 async function fetchKalshiAll() {
   try {
-    const bust = Math.floor(Date.now() / 3600000);   // changes each hour
+    const bust = Math.floor(Date.now() / 300000);   // changes every 5 min
     const r = await fetch('kalshi-odds.json?v=' + bust);
     if (!r.ok) { KALSHI.status = 'file-' + r.status; return; }
     const data = await r.json();
@@ -8471,7 +8471,7 @@ setTimeout(function(){ globalRefresh(); }, 2000);
 // by a GitHub Action). Cheap same-origin read; failures leave stored odds in
 // place. Re-check every 30 min while the app is open.
 setTimeout(function(){ fetchKalshiAll(); }, 500);
-setInterval(function(){ fetchKalshiAll(); }, 30*60*1000);
+setInterval(function(){ fetchKalshiAll(); }, 10*60*1000);
 // Auto-refresh every 24 hours while app is open
 setInterval(function(){ globalRefresh(); }, 24*60*60*1000);
 // Polymarket odds are hardcoded — no background fetch needed
