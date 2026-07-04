@@ -1,13 +1,17 @@
 {
-  "updated": "2026-07-03T23:45:34.128Z",
+  "updated": "2026-07-04T02:31:52.352Z",
   "odds": {
+    "Argentina_Egypt": [
+      85,
+      15
+    ],
     "Portugal_Spain": [
-      34,
-      66
+      33,
+      67
     ],
     "USA_Belgium": [
-      50,
-      50
+      49,
+      51
     ],
     "Mexico_England": [
       48,
@@ -34,8 +38,8 @@
       50
     ],
     "Colombia_Ghana": [
-      81,
-      19
+      91,
+      9
     ],
     "Portugal_Croatia": [
       50,
@@ -54,8 +58,8 @@
       50
     ],
     "Argentina_Cabo Verde": [
-      81,
-      19
+      50,
+      50
     ],
     "France_Sweden": [
       50,
