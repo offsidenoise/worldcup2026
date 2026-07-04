@@ -1,6 +1,10 @@
 {
-  "updated": "2026-07-04T10:51:55.664Z",
+  "updated": "2026-07-04T12:04:07.439Z",
   "odds": {
+    "Switzerland_Colombia": [
+      40,
+      60
+    ],
     "Argentina_Egypt": [
       86,
       14
