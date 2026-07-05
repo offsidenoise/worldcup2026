@@ -1,6 +1,10 @@
 {
-  "updated": "2026-07-04T23:58:53.286Z",
+  "updated": "2026-07-05T04:02:02.252Z",
   "odds": {
+    "France_Morocco": [
+      77,
+      23
+    ],
     "Switzerland_Colombia": [
       38,
       62
@@ -26,8 +30,8 @@
       50
     ],
     "Brazil_Norway": [
-      70,
-      30
+      71,
+      29
     ],
     "Canada_Morocco": [
       50,
