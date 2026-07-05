@@ -5551,7 +5551,7 @@ function _applyMatchDetailsFromSummary(sj){
           // for an own goal. Determined purely from the match's two teams.
           const scoredByHome = namesMatch(s.realTeam, m.home);
           const benefitsHome = s.og ? !scoredByHome : scoredByHome;
-          const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
+          const label = `${esc(s.name)} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
           (benefitsHome?homeScorers:awayScorers).push(label);
         });
         m.homeScorers=homeScorers; m.awayScorers=awayScorers;
@@ -6042,6 +6042,17 @@ function _espnShootout(comp) {
     }
   } catch (e) {}
   return NaN;
+}
+
+// HTML-escape untrusted strings before interpolating into innerHTML or HTML
+// attributes. External data (ESPN player/referee names) reaches us THROUGH
+// public CORS proxies, which can tamper with responses — so treat all such
+// strings as untrusted. Escapes the five HTML-significant chars incl. both
+// quote types so it is safe in text nodes AND single/double-quoted attributes.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function normalizeESPNTeam(name) {
@@ -6855,7 +6866,7 @@ async function globalRefresh(){
                   matchScorers.forEach(s=>{
                     const scoredByHome = namesMatch(s.realTeam, m.home);
                     const benefitsHome = s.og ? !scoredByHome : scoredByHome;
-                    const label = `${s.name} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
+                    const label = `${esc(s.name)} ${s.min}${s.pen?' (P)':''}${s.og?' (OG)':''}`.trim();
                     (benefitsHome?homeScorers:awayScorers).push(label);
                   });
                   m.homeScorers=homeScorers; m.awayScorers=awayScorers;
@@ -8063,7 +8074,7 @@ function lmRenderStats(eventId) {
   let scorersHtml = '';
   if (sc.home.length || sc.away.length) {
     const side = list => list.length
-      ? list.map(s => `<div class="sm-scorer">${s.name} <span class="sm-scorer-min">${s.mins}</span></div>`).join('')
+      ? list.map(s => `<div class="sm-scorer">${esc(s.name)} <span class="sm-scorer-min">${esc(s.mins)}</span></div>`).join('')
       : '<div class="sm-scorer sm-scorer-empty">—</div>';
     scorersHtml = `<div class="sm-scorers">
       <div class="sm-scorers-col">${side(sc.home)}</div>
@@ -8178,9 +8189,14 @@ function lmRender(eventId) {
       const num = p.jersey || seed?.num || '';
       // Use ESPN position; if it's just "SUB" (or empty), fall back to seed-data position
       const pos = (p.position && !/^sub/i.test(p.position)) ? p.position : (seed?.pos || '');
-      return `<div class="lm-player ${cls}" onclick="pmOpen('${encodeURIComponent(JSON.stringify({espnId:pid,name:p.name,jersey:p.jersey,headshot:p.headshot,teamName}))}')">
+      // encodeURIComponent leaves apostrophes raw, which would break out of the
+      // single-quoted onclick string (e.g. "N'Golo Kanté") and allow attribute
+      // injection. Percent-encode the apostrophe too; decodeURIComponent in
+      // pmOpen reverses it correctly.
+      const _pmPayload = encodeURIComponent(JSON.stringify({espnId:pid,name:p.name,jersey:p.jersey,headshot:p.headshot,teamName})).replace(/'/g, '%27');
+      return `<div class="lm-player ${cls}" onclick="pmOpen('${_pmPayload}')">
         <span class="lm-player-num">${num}</span>
-        <span class="lm-player-name">${p.name}${pos ? ` <span class="lm-player-pos">(${pos})</span>` : ''}</span>
+        <span class="lm-player-name">${esc(p.name)}${pos ? ` <span class="lm-player-pos">(${esc(pos)})</span>` : ''}</span>
         <span class="lm-player-icons">${icons}</span>
       </div>`;
     }
@@ -8257,16 +8273,16 @@ function pmOpen(playerJson) {
 
   // Hero section
   const photoHtml = headshot
-    ? `<img class="pm-photo" src="${headshot}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+    ? `<img class="pm-photo" src="${esc(headshot)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
     : '';
   const placeholderHtml = `<div class="pm-photo-placeholder" ${headshot ? 'style="display:none"' : ''}>${flag}</div>`;
 
   document.getElementById('pm-hero').innerHTML = `
     ${photoHtml}${placeholderHtml}
     <div>
-      <div class="pm-name">${flag} ${name}</div>
-      <div class="pm-meta">#${num} · ${pos} · ${LANG==='es'?'Edad':'Age'} ${age}</div>
-      <div class="pm-meta" style="margin-top:2px;">${club}</div>
+      <div class="pm-name">${flag} ${esc(name)}</div>
+      <div class="pm-meta">#${esc(num)} · ${esc(pos)} · ${LANG==='es'?'Edad':'Age'} ${esc(age)}</div>
+      <div class="pm-meta" style="margin-top:2px;">${esc(club)}</div>
     </div>`;
 
   // Tournament stats from statsData
