@@ -5804,7 +5804,7 @@ function renderStatsTeams(){
     const nxt=(r.nextOpp===t('eliminated')||r.nextOpp==='Eliminated'||r.nextOpp==='Eliminado')?'<span style="color:var(--muted);font-size:0.8rem;">Eliminated</span>':
               r.nextOpp==='TBD'?'<span style="color:var(--muted);">TBD</span>':tTeam(r.nextOpp);
     html+='<tr><td><span class="team-link" onclick="openTeamDrill(this.dataset.team)" data-team="'+r.name.replace(/"/g,'&quot;')+'">'
-      +r.flag+' '+r.name+'</span></td>'
+      +r.flag+' '+tTeam(r.name)+'</span></td>'
       +'<td class="num">'+r.gf+'</td><td class="num">'+r.ga+'</td>'
       +'<td class="num">'+r.yellow+'</td><td class="num">'+r.red+'</td>'
       +'<td>'+roundBadge({label:r.curLabel,cls:r.curCls})+'</td>'
@@ -5834,7 +5834,7 @@ function renderTeamDrill(team,el){
   const flag=FLAGS[team]||'';
   const th=(col,lbl,isNum)=>thH("drill",sk,col,lbl,isNum);
   let html='<button class="stats-back-btn" onclick="closeTeamDrill()">'+t('back_teams')+'</button>'
-    +'<div class="stats-drill-title" onclick="closeTeamDrill()">'+flag+' '+team+'</div>'
+    +'<div class="stats-drill-title" onclick="closeTeamDrill()">'+flag+' '+tTeam(team)+'</div>'
     +(coachStr?'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:0.85rem;color:var(--muted);margin-bottom:12px;">'+t('coach')+': <span style="color:var(--text);">'+coachStr+'</span></div>':'')
     +'<div class="stats-table-wrap"><table class="stats-tbl"><thead><tr>'
     +th('name',t('th_player'),false)+th('pos',t('th_pos'),false)+th('age',t('th_age'),true)+th('club',t('th_club'),false)
@@ -5880,7 +5880,7 @@ function renderStatsGoals(){
     let rank=1;
     rows.forEach((r,i)=>{
       if(i>0&&r.goals!==rows[i-1].goals) rank=i+1;
-      html+='<tr><td class="rank">'+rank+'</td><td>'+r.name+'</td><td>'+r.flag+' '+r.country+'</td>'
+      html+='<tr><td class="rank">'+rank+'</td><td>'+r.name+'</td><td>'+r.flag+' '+tTeam(r.country)+'</td>'
         +'<td class="num">'+r.goals+'</td>'+(SHOW_PLAYER_GAMES?('<td class="num">'+(r.games||'—')+'</td>'):'')+'</tr>';
     });
     html+='</tbody></table></div>';
@@ -5897,7 +5897,7 @@ function renderStatsGoals(){
     let rank=1;
     rows.forEach((r,i)=>{
       if(i>0&&r.goals!==rows[i-1].goals) rank=i+1;
-      html+='<tr><td class="rank">'+(r.goals>0?rank:'')+'</td><td>'+r.flag+' '+r.team+'</td>'
+      html+='<tr><td class="rank">'+(r.goals>0?rank:'')+'</td><td>'+r.flag+' '+tTeam(r.team)+'</td>'
         +'<td class="num">'+r.goals+'</td><td class="num">'+r.games+'</td></tr>';
     });
     html+='</tbody></table></div>';
@@ -5923,7 +5923,7 @@ function renderStatsCards(){
       +th('name',t('th_player'),false)+th('country',t('th_country'),false)
       +th('yellows','🟨',true)+th('reds','🟥',true)+'<th>'+t('stats_suspended')+'</th></tr></thead><tbody>';
     rows.forEach(r=>{
-      html+='<tr><td>'+r.name+'</td><td>'+r.flag+' '+r.country+'</td>'
+      html+='<tr><td>'+r.name+'</td><td>'+r.flag+' '+tTeam(r.country)+'</td>'
         +'<td class="num">'+r.yellows+'</td><td class="num">'+r.reds+'</td>'
         +'<td class="'+(r.suspended?'susp-yes':'susp-no')+'">'+(r.suspended?'Yes':'No')+'</td></tr>';
     });
@@ -5939,7 +5939,7 @@ function renderStatsCards(){
       +th('team',t('th_country'),false)+th('yellows',t('th_yellows'),true)+th('reds',t('th_reds'),true)
       +'</tr></thead><tbody>';
     rows.forEach(r=>{
-      html+='<tr><td>'+r.flag+' '+r.team+'</td>'
+      html+='<tr><td>'+r.flag+' '+tTeam(r.team)+'</td>'
         +'<td class="num">'+r.yellows+'</td><td class="num">'+r.reds+'</td></tr>';
     });
     html+='</tbody></table></div>';
@@ -5959,7 +5959,7 @@ function renderStatsSuspended(){
     +th('name',t('th_player'),false)+th('country',t('th_country'),false)+'<th>'+t('th_gamesleft')+'</th></tr></thead><tbody>';
   rows.forEach(r=>{
     const g=r.eliminated?'<span style="color:var(--muted);font-size:0.8rem;">Eliminated</span>':'<span class="susp-yes">'+r.gamesLeft+'</span>';
-    html+='<tr><td>'+r.name+'</td><td>'+(FLAGS[r.country]||'')+' '+r.country+'</td><td>'+g+'</td></tr>';
+    html+='<tr><td>'+r.name+'</td><td>'+(FLAGS[r.country]||'')+' '+tTeam(r.country)+'</td><td>'+g+'</td></tr>';
   });
   html+='</tbody></table></div>';
   el.innerHTML=html;
@@ -6614,7 +6614,11 @@ async function globalRefresh(){
     const rangeResults=await Promise.all(dateRanges.map(async dates=>{
       try{const r=await espnFetch(BASE+'/scoreboard?dates='+dates+'&limit=100');if(!r.ok)return null;return await r.json();}catch(e){return null;}
     }));
-    rangeResults.forEach(d=>{ if(d)(d.events||[]).forEach(e=>allEvents.push(e)); });
+    // Merge the date-range results, DEDUPING by event id. ESPN can return the
+    // same match in overlapping/adjacent date windows; without this dedup a
+    // completed match gets aggregated twice and every scorer's goals double
+    // (e.g. Haaland 5 -> 10). The today-fetch below already dedups the same way.
+    rangeResults.forEach(d=>{ if(d)(d.events||[]).forEach(e=>{ if(!allEvents.find(x=>x.id===e.id)) allEvents.push(e); }); });
     const todayISO=new Date().toLocaleDateString('en-CA').replace(/-/g,'');
     try{const r=await espnFetch(BASE+'/scoreboard?dates='+todayISO+'&limit=50');if(r.ok){const d=await r.json();(d.events||[]).forEach(e=>{if(!allEvents.find(x=>x.id===e.id))allEvents.push(e);});}}catch(e){}
     const completed=allEvents.filter(e=>e.status?.type?.completed===true);
