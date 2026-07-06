@@ -7868,27 +7868,91 @@ function _orderRowLaterally(row, mirror){
 
 function _lmFormationRows(xi, formationStr) {
   if (!xi.length) return [];
-  // Order by formationPlace (1=GK, 2.. tactical). Subs that came on keep the
-  // slot they inherited, so this stays correct after substitutions.
+  // Order by formationPlace as a stable base ordering (used for tie-breaks).
   const ordered = [...xi].sort((a, b) => {
     const fa = parseInt(a.formationPlace) || 999, fb = parseInt(b.formationPlace) || 999;
     return fa - fb;
   });
-  // If ESPN gave us a formation string AND we have a sensible count, use it.
+
+  // Classify an ESPN position abbreviation into a pitch band:
+  // 0=GK, 1=DEF, 2=DM(holding), 3=MID/AM, 4=FWD. Comprehensive across ESPN's
+  // codes incl. CAM/CDM/wingers, so players land in the right line regardless
+  // of how ESPN numbers formationPlace. Returns null if unknown.
+  const band = pos => {
+    const p = (pos || '').toUpperCase().replace(/[^A-Z]/g, '');
+    if (!p) return null;
+    if (/^G/.test(p)) return 0;                                  // GK, G
+    if (/^(CB|LB|RB|LWB|RWB|WB|SW|D|DF|FB)$/.test(p) || /BACK|DEFEN/.test(p)) return 1;
+    if (/^(CDM|DM|DLM)$/.test(p)) return 2;                      // holding mids
+    if (/^(ST|CF|SS|FW|F|LW|RW|W|WF)$/.test(p) || /FORWARD|STRIK|WING/.test(p)) return 4;
+    if (/^(CAM|AM|CM|LM|RM|LCM|RCM|M|MF|OM)$/.test(p) || /MID/.test(p)) return 3;
+    return null;
+  };
+
   if (formationStr && /^\d+(-\d+)+$/.test(formationStr)) {
     const lines = formationStr.split('-').map(n => parseInt(n, 10)).filter(n => n > 0);
-    const outfieldNeeded = lines.reduce((a, b) => a + b, 0);
-    // ESPN order is GK first, then defenders → forwards. Take GK, then chunk.
+    const totalNeeded = 1 + lines.reduce((a, b) => a + b, 0);   // GK + outfield
+    // Map formation lines to target bands. First line = defenders (band 1).
+    // A leading small line right after defenders that equals the DM count maps
+    // to band 2; remaining middle lines map to band 3 (attacking mid); last
+    // line maps to band 4 (forwards). This mirrors how 4-2-3-1, 4-3-3, 4-4-2,
+    // 3-5-2 etc. are drawn.
+    // Build the row skeleton in vertical order GK -> DEF -> ... -> FWD.
+    const rowBands = [0, 1];              // GK, then defenders
+    for (let i = 1; i < lines.length; i++) {
+      if (i === lines.length - 1) rowBands.push(4);       // last line = forwards
+      else if (i === 1 && lines.length >= 3) rowBands.push(2); // 2nd line = holding
+      else rowBands.push(3);                              // middle = att. mid
+    }
+    // If our classifier has good coverage, place players by band; otherwise
+    // fall back to the old sequential chunk (still better than nothing).
+    const bands = ordered.map(p => band(p.position));
+    const known = bands.filter(b => b !== null).length;
+    if (ordered.length === totalNeeded && known >= totalNeeded - 2) {
+      // Bucket players by band, preserving formationPlace order within a band.
+      const buckets = { 0: [], 1: [], 2: [], 3: [], 4: [] };
+      ordered.forEach((p, i) => {
+        let b = bands[i];
+        if (b === null) b = 3;            // unknown -> attacking mid (safe middle)
+        buckets[b].push(p);
+      });
+      // Assemble rows following the formation's line sizes, pulling from the
+      // matching band; if a band runs short/over, spill sensibly to neighbours.
+      const pool = {
+        0: buckets[0].slice(), 1: buckets[1].slice(),
+        2: buckets[2].slice(), 3: buckets[3].slice(), 4: buckets[4].slice(),
+      };
+      const take = (b, n) => {
+        const out = [];
+        // preferred band first, then spill from adjacent bands (closest first)
+        const orderPref = [b, b + 1, b - 1, b + 2, b - 2].filter(x => x >= 0 && x <= 4);
+        while (out.length < n) {
+          let got = false;
+          for (const pb of orderPref) {
+            if (pool[pb] && pool[pb].length) { out.push(pool[pb].shift()); got = true; break; }
+          }
+          if (!got) break;
+        }
+        return out;
+      };
+      const rows = [];
+      rows.push(take(0, 1));                          // GK
+      for (let li = 0; li < lines.length; li++) {
+        rows.push(take(rowBands[li + 1], lines[li]));
+      }
+      // Append any stragglers to the last row.
+      const leftover = [].concat(pool[0], pool[1], pool[2], pool[3], pool[4]);
+      if (leftover.length) rows[rows.length - 1].push(...leftover);
+      const built = rows.filter(r => r.length);
+      if (built.length) return built;
+    }
+    // Fallback: original sequential chunk (GK, then chunk in formationPlace order).
     const gk = ordered.slice(0, 1);
     const outfield = ordered.slice(1);
-    if (outfield.length >= outfieldNeeded - 1) {
+    if (outfield.length >= lines.reduce((a, b) => a + b, 0) - 1) {
       const rows = [gk];
       let idx = 0;
-      for (const n of lines) {
-        rows.push(outfield.slice(idx, idx + n));
-        idx += n;
-      }
-      // any leftover (shouldn't happen) appended to last line
+      for (const n of lines) { rows.push(outfield.slice(idx, idx + n)); idx += n; }
       if (idx < outfield.length) rows[rows.length - 1].push(...outfield.slice(idx));
       return rows.filter(r => r.length);
     }
