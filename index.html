@@ -7955,6 +7955,27 @@ function _lmFormationRows(xi, formationStr) {
       // Append any stragglers to the last row.
       const leftover = [].concat(pool[0], pool[1], pool[2], pool[3], pool[4]);
       if (leftover.length) rows[rows.length - 1].push(...leftover);
+      // Order players left->right WITHIN each row using the position's lateral
+      // suffix (-L / -C / -R, or L*/R* prefixes like LB/RB/LW/RW). This is what
+      // puts e.g. Yamal (AM-R) on the RIGHT of the attacking three rather than
+      // wherever formationPlace happened to fall. Unknown side -> centre, with
+      // formationPlace as a stable tiebreak.
+      const sideRank = p => {
+        const a = (p.position || '').toUpperCase();
+        // explicit -L / -R / -C suffix
+        if (/-L$/.test(a)) return 0;
+        if (/-R$/.test(a)) return 2;
+        if (/-C$/.test(a)) return 1;
+        // leading L / R (LB, RB, LW, RW, LM, RM, LWB, RWB...)
+        if (/^L/.test(a)) return 0;
+        if (/^R/.test(a)) return 2;
+        return 1; // central / unknown
+      };
+      rows.forEach(r => r.sort((x, y) => {
+        const sr = sideRank(x) - sideRank(y);
+        if (sr !== 0) return sr;
+        return (parseInt(x.formationPlace) || 0) - (parseInt(y.formationPlace) || 0);
+      }));
       const built = rows.filter(r => r.length);
       if (built.length) return built;
     }
