@@ -7879,13 +7879,25 @@ function _lmFormationRows(xi, formationStr) {
   // codes incl. CAM/CDM/wingers, so players land in the right line regardless
   // of how ESPN numbers formationPlace. Returns null if unknown.
   const band = pos => {
-    const p = (pos || '').toUpperCase().replace(/[^A-Z]/g, '');
+    // ESPN abbreviations look like G, CD-L, CD-R, CM, LM, AM-C, CF, LW, ST, DM...
+    // The ROLE is the letters before any hyphen; the -L/-R/-C suffix is only the
+    // lateral side. So take the prefix, then classify by role. (Verified against
+    // real ESPN data: GK='G', a centre-back='CD-L', subs='SUB'/place 0.)
+    let p = (pos || '').toUpperCase().trim();
     if (!p) return null;
-    if (/^G/.test(p)) return 0;                                  // GK, G
-    if (/^(CB|LB|RB|LWB|RWB|WB|SW|D|DF|FB)$/.test(p) || /BACK|DEFEN/.test(p)) return 1;
-    if (/^(CDM|DM|DLM)$/.test(p)) return 2;                      // holding mids
-    if (/^(ST|CF|SS|FW|F|LW|RW|W|WF)$/.test(p) || /FORWARD|STRIK|WING/.test(p)) return 4;
-    if (/^(CAM|AM|CM|LM|RM|LCM|RCM|M|MF|OM)$/.test(p) || /MID/.test(p)) return 3;
+    const role = p.split('-')[0].replace(/[^A-Z]/g, '');   // 'CD-L' -> 'CD'
+    if (!role || role === 'SUB') return null;
+    if (role === 'G' || role === 'GK') return 0;            // goalkeeper
+    // Holding / defensive mid — check BEFORE generic defender/mid.
+    if (/^(CDM|DM|DLM|DMF)$/.test(role)) return 2;
+    // Attacking mid.
+    if (/^(CAM|AM|AMF|OM)$/.test(role)) return 3;
+    // Forwards / wingers.
+    if (/^(ST|CF|SS|FW|F|LW|RW|W|WF|LF|RF)$/.test(role) || /FORWARD|STRIK|WING/.test(role)) return 4;
+    // Central / side midfielders.
+    if (/^(CM|LM|RM|LCM|RCM|M|MF|CMF|LDM|RDM)$/.test(role) || /MID/.test(role)) return 3;
+    // Defenders (centre-backs, full-backs, wing-backs). CD = Centre Defender.
+    if (/^(CB|LB|RB|LWB|RWB|WB|SW|D|DF|FB|CD|LCB|RCB|LCD|RCD)$/.test(role) || /BACK|DEFEN/.test(role)) return 1;
     return null;
   };
 
