@@ -1,6 +1,10 @@
 {
-  "updated": "2026-07-07T00:19:41.088Z",
+  "updated": "2026-07-07T04:31:29.796Z",
   "odds": {
+    "Spain_Belgium": [
+      73,
+      27
+    ],
     "Norway_England": [
       35,
       65
@@ -22,8 +26,8 @@
       50
     ],
     "USA_Belgium": [
-      30,
-      70
+      50,
+      50
     ],
     "Mexico_England": [
       50,
