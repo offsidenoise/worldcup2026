@@ -8073,16 +8073,15 @@ function _lmTeamPitch(lineup, subs, ev, teamName, halfClass, teamIds, kitColor, 
   }
   let rows = _lmFormationRows(xi, formationStr);   // GK → DEF → MID → FWD
   const isAway = (halfClass === 'ln-half-away');
-  // Order each row from the team's own left → right. In a facing-each-other
-  // layout the HOME team occupies the top half and attacks DOWNWARD, so its own
-  // left sits on the viewer's RIGHT — it's the home side that must be mirrored
-  // horizontally. The away team attacks upward (like ESPN's per-team view), so
-  // its own left maps straight to the viewer's left with no mirror.
+  // Mirror rule (stated by the reference layout): when a team's GK is at the TOP
+  // of its half — i.e. it attacks DOWNWARD — the pitch is rotated 180°, so the
+  // team's own left must render on the viewer's RIGHT (mirror = true). The HOME
+  // team occupies the top half (GK at top), so it is mirrored; the AWAY team's GK
+  // sits at the bottom (attacks upward) and is not mirrored.
   rows = rows.map(row => _orderRowLaterally(row, !isAway));
-  // On the pitch, the GK stands on the goal line. Home team occupies the TOP
-  // half (attacks downward), so its GK is at the very top → keep GK-first order.
-  // Away team occupies the BOTTOM half (attacks upward), so its GK is at the
-  // very bottom → render rows reversed (FWD → … → GK).
+  // GK sits at the goal line. Home occupies the TOP half with its GK at the very
+  // top (GK-first order); away occupies the BOTTOM half with its GK at the very
+  // bottom (rows reversed FWD → … → GK).
   const renderRows = isAway ? rows.slice().reverse() : rows;
   const rowsHtml = renderRows.map(row =>
     `<div class="ln-row">${row.map(p => _lmPlayerCell(p, ev, kitColor)).join('')}</div>`
