@@ -7636,6 +7636,18 @@ function _liveInitForDay() {
     _liveStartPoll();
   } else if (now < startAt) {
     setTimeout(_liveStartPoll, startAt - now);
+  } else {
+    // Past the poll window (>2h after the last kickoff), but today's matches
+    // have finished. Without _liveEvents populated, finished-today rows have no
+    // live event to bind to and so aren't clickable. Do a SINGLE catch-up fetch
+    // (not the repeating poll) to repopulate _liveEvents with today's post-state
+    // matches — including lineups — so their rows open the modal.
+    (async () => {
+      try {
+        await _liveFetchAll(espnFetchCascade);
+        renderTodayMatches();
+      } catch (e) {}
+    })();
   }
 
   // Visibility-based pause/resume
