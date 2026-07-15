@@ -7416,6 +7416,22 @@ function refereeCountry(name){
   if(!name) return '';
   const n=_REF_NORM_INDEX.norm(name);
   if(_REF_NORM_INDEX.idx[n]) return _REF_NORM_INDEX.idx[n];
+  // Subset fallback: ESPN often supplies a fuller legal name than the FIFA list
+  // key (extra given names or a second/maternal surname), e.g. the map has
+  // "Iván Barton" but ESPN sends "Iván Arcides Barton Cisneros". Match a key
+  // when ALL of its tokens appear in the ESPN name. Require a unique country to
+  // avoid guessing.
+  const nameTokens = new Set(n.split(' ').filter(Boolean));
+  let subHit='';
+  for(const k in _REF_NORM_INDEX.idx){
+    const kt=k.split(' ').filter(Boolean);
+    if(kt.length && kt.every(t=>nameTokens.has(t))){
+      const c=_REF_NORM_INDEX.idx[k];
+      if(subHit && subHit!==c) return '';   // ambiguous → no country
+      subHit=c;
+    }
+  }
+  if(subHit) return subHit;
   // surname fallback: match on last token if unique
   const last=n.split(' ').slice(-1)[0];
   let hit='';
@@ -7629,7 +7645,14 @@ function _liveInitForDay() {
   const first = kickoffs[0];
   const last  = kickoffs[kickoffs.length - 1];
   const now   = Date.now();
-  const startAt = first - 30 * 60 * 1000;  // 30 min before first KO
+  const startAt = first - 60 * 60 * 1000;  // 60 min before first KO — must be at
+                                           // least as early as the `isPre` window
+                                           // (kickoff within 60 min) that makes a
+                                           // row openable, otherwise there is a
+                                           // dead zone where the modal is allowed
+                                           // to open but _liveEvents is still empty
+                                           // so `liveEv` is undefined and canOpen
+                                           // is false.
   const stopAt  = last  + 2 * 60 * 60 * 1000; // 2h after last KO
 
   if (now >= startAt && now <= stopAt) {
