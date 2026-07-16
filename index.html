@@ -2161,6 +2161,26 @@ function loadState() {
     });
     state._ogMigrated=true;
   }
+  // Backfill knockout `loser` on load. Earlier builds recorded ESPN knockout
+  // results with a `winner` but no `loser`, and the ESPN pass skips any match
+  // that already has a score — so those entries would never get a loser and the
+  // 3rd-place match (fed from knockout[101/102].loser) stayed blank. Recompute
+  // loser from the stored scores for any decided entry missing it. Cheap and
+  // idempotent, so it can run every load.
+  if(state.knockout){
+    for(const mn in state.knockout){
+      const k=state.knockout[mn];
+      if(!k || k.loser || k.homeScore==null || k.awayScore==null) continue;
+      if(!k.home || !k.away) continue;
+      const hS=k.homeScore, aS=k.awayScore, hP=k.homePen, aP=k.awayPen;
+      const winner = (hS!==aS) ? (hS>aS?k.home:k.away)
+        : (hP!=null&&aP!=null&&hP!==aP) ? (hP>aP?k.home:k.away)
+        : null;
+      if(!winner) continue;                      // truly level & no shootout → leave blank
+      if(!k.winner) k.winner=winner;             // repair a missing winner too
+      k.loser = winner===k.home ? k.away : k.home;
+    }
+  }
 }
 
 // ============================================================
