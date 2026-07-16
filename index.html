@@ -6707,6 +6707,13 @@ async function globalRefresh(){
               state.knockout[mn].winner = (hS!==aS) ? (hS>aS?home:away)
                 : (hP!=null&&aP!=null&&hP!==aP) ? (hP>aP?home:away)
                 : (hS>aS?home:away);
+              // Loser is the other side. The 3rd-place match (103) is fed from
+              // knockout[101].loser / knockout[102].loser, so this must be set
+              // for ESPN-sourced results too — not just manual advances.
+              state.knockout[mn].loser =
+                state.knockout[mn].winner===home ? away
+                : state.knockout[mn].winner===away ? home
+                : null;
               state.knockout[mn]._espnId=event.id;
               if(state.predictions.knockout[mn]) delete state.predictions.knockout[mn];
               cascadeClearKO(mn); updated=true; break;
