@@ -1,5 +1,5 @@
 {
-  "updated": "2026-07-19T22:33:41.281Z",
+  "updated": "2026-07-19T23:39:16.726Z",
   "odds": {
     "France_England": [
       50,
@@ -120,6 +120,10 @@
     "South Africa_Canada": [
       50,
       50
+    ],
+    "Spain_France": [
+      61,
+      39
     ]
   }
 }
