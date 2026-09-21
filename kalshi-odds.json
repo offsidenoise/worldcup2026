@@ -1,17 +1,13 @@
 {
-  "updated": "2026-09-21T08:54:09.692Z",
+  "updated": "2026-09-21T15:36:22.956Z",
   "odds": {
     "France_England": [
       50,
       50
     ],
-    "England_Argentina": [
+    "France_Spain": [
       50,
       50
-    ],
-    "France_Spain": [
-      52,
-      48
     ]
   }
 }
